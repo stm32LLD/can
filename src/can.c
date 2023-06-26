@@ -79,14 +79,16 @@ static can_ctrl_t g_can[eCAN_CH_NUM_OF] = {0};
 ////////////////////////////////////////////////////////////////////////////////
 // Function prototypes
 ////////////////////////////////////////////////////////////////////////////////
-static can_status_t can_init_fifo       (const can_ch_t can_ch, const uint32_t tx_size, const uint32_t rx_size);
-static void         can_enable_clock    (const FDCAN_GlobalTypeDef * p_inst);
-static void         can_disable_clock   (const FDCAN_GlobalTypeDef * p_inst);
-static void         can_init_gpio       (const can_pin_cfg_t * const p_pin_cfg);
-static void         can_deinit_gpio     (const can_pin_cfg_t * const p_pin_cfg);
-static inline bool  can_find_channel    (const FDCAN_GlobalTypeDef * p_inst, can_ch_t * const p_ch);
-static inline void  can_process_isr     (const FDCAN_GlobalTypeDef * p_inst);
+static can_status_t     can_init_fifo       (const can_ch_t can_ch, const uint32_t tx_size, const uint32_t rx_size);
+static void             can_enable_clock    (const FDCAN_GlobalTypeDef * p_inst);
+static void             can_disable_clock   (const FDCAN_GlobalTypeDef * p_inst);
+static void             can_init_gpio       (const can_pin_cfg_t * const p_pin_cfg);
+static void             can_deinit_gpio     (const can_pin_cfg_t * const p_pin_cfg);
+static inline bool      can_find_channel    (const FDCAN_GlobalTypeDef * p_inst, can_ch_t * const p_ch);
+static inline void      can_process_isr     (const FDCAN_GlobalTypeDef * p_inst);
+static can_dlc_opt_t    can_dlc_to_real     (const uint32_t dlc_raw);
 
+//static uint32_t         can_dlc_to_raw      (const can_dlc_opt_t dlt_opt);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,11 +240,9 @@ static inline bool can_find_channel(const FDCAN_GlobalTypeDef * p_inst, can_ch_t
 ////////////////////////////////////////////////////////////////////////////////
 static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
 {
-    can_ch_t can_ch = 0;
-    FDCAN_RxHeaderTypeDef msg_header;
-    static uint8_t data[8] = {0};
-
-    static uint32_t rx_cnt = 0;
+    can_ch_t                can_ch  = 0;
+    FDCAN_RxHeaderTypeDef   header  = {0};
+    can_msg_t               can_msg = {0};
 
     // Find CAN channel by hardware instance
     if ( true == can_find_channel( p_inst, &can_ch ))
@@ -253,16 +253,65 @@ static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
             // Clear flag
             __HAL_FDCAN_CLEAR_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_RX_FIFO0_NEW_MESSAGE );
 
+            // Get Rx CAN message
+            HAL_FDCAN_GetRxMessage( &g_can[can_ch].handle, FDCAN_RX_FIFO0, &header, (uint8_t*) &can_msg.data );
 
-            HAL_FDCAN_GetRxMessage( &g_can[can_ch].handle, FDCAN_RX_FIFO0, &msg_header, (uint8_t*) &data );
+            // Assemble CAN message
+            can_msg.id  = header.Identifier;
+            can_msg.dlc = can_dlc_to_real( header.DataLength );
+            can_msg.fd  = ( FDCAN_CLASSIC_CAN == header.FDFormat ) ? false : true;
 
-            data[0]++;
-            data[0]--;
-
-            rx_cnt++;
+            // Put to Rx fifo
+            (void) ring_buffer_add( g_can[can_ch].rx_buf, (can_msg_t*) &can_msg );
         }
     }
 }
+
+
+static uint32_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
+{
+        [eCAN_DLC_0]    = FDCAN_DLC_BYTES_0,
+        [eCAN_DLC_1]    = FDCAN_DLC_BYTES_1,
+        [eCAN_DLC_2]    = FDCAN_DLC_BYTES_2,
+        [eCAN_DLC_3]    = FDCAN_DLC_BYTES_3,
+        [eCAN_DLC_4]    = FDCAN_DLC_BYTES_4,
+        [eCAN_DLC_5]    = FDCAN_DLC_BYTES_5,
+        [eCAN_DLC_6]    = FDCAN_DLC_BYTES_6,
+        [eCAN_DLC_7]    = FDCAN_DLC_BYTES_7,
+        [eCAN_DLC_8]    = FDCAN_DLC_BYTES_8,
+        [eCAN_DLC_12]   = FDCAN_DLC_BYTES_12,
+        [eCAN_DLC_16]   = FDCAN_DLC_BYTES_16,
+        [eCAN_DLC_20]   = FDCAN_DLC_BYTES_20,
+        [eCAN_DLC_24]   = FDCAN_DLC_BYTES_24,
+        [eCAN_DLC_32]   = FDCAN_DLC_BYTES_32,
+        [eCAN_DLC_48]   = FDCAN_DLC_BYTES_48,
+        [eCAN_DLC_64]   = FDCAN_DLC_BYTES_64,
+};
+
+
+
+static can_dlc_opt_t can_dlc_to_real(const uint32_t dlc_raw)
+{
+    can_dlc_opt_t dcl = eCAN_DLC_0;
+
+    for ( can_dlc_opt_t opt = eCAN_DLC_0; opt < eCAN_DLC_NUM_OF; opt++ )
+    {
+        if ( dlc_raw == gu32_dlc_map[opt] )
+        {
+            dcl = opt;
+            break;
+        }
+    }
+
+    return dcl;
+}
+
+/*
+static uint32_t can_dlc_to_raw(const can_dlc_opt_t dlt_opt)
+{
+    return gu32_dlc_map[dlt_opt];
+}
+*/
 
 
 #if defined(FDCAN1)
@@ -464,17 +513,50 @@ can_status_t can_is_init(const can_ch_t can_ch, bool * const p_is_init)
 
 can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
 {
-    can_status_t status = eCAN_OK;
+    can_status_t    status  = eCAN_OK;
+    can_msg_t       can_msg = {0};
 
     CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
     CAN_ASSERT( true == g_can[can_ch].is_init );
     CAN_ASSERT( NULL != p_msg );
 
-    if (    ( can_ch < eCAN_CH_NUM_OF )
-        &&  ( true == g_can[can_ch].is_init )
-        &&  ( NULL != p_msg ))
+    if ( can_ch < eCAN_CH_NUM_OF )
     {
+        if (    ( true == g_can[can_ch].is_init )
+            &&  ( NULL != p_msg ))
+        {
+            if ( p_msg-> dlc < eCAN_DLC_NUM_OF )
+            {
+                // Copy can message
+                memcpy( &can_msg, p_msg, sizeof( can_msg_t ));
 
+                // Enter critical
+                __disable_irq();
+
+                // FIFO full
+                if ( eRING_BUFFER_OK != ring_buffer_add( g_can[can_ch].tx_buf, (can_msg_t*) &can_msg ))
+                {
+                    status = eCAN_WAR_FULL;
+                }
+                else
+                {
+                    // Raise TX empty IRQ
+                    // NOTE: Later in irq message is being transmitted
+                    __HAL_FDCAN_ENABLE_IT( &g_can[can_ch].handle, FDCAN_IT_TX_FIFO_EMPTY );
+                }
+
+                // Exit critical
+                __enable_irq();
+            }
+            else
+            {
+                status = eCAN_ERROR;
+            }
+        }
+        else
+        {
+            status = eCAN_ERROR;
+        }
     }
     else
     {
@@ -485,10 +567,38 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
 }
 
 
-/*can_status_t can_receive(const can_ch_t can_ch, can_msg_t * const p_msg)
+can_status_t can_receive(const can_ch_t can_ch, can_msg_t * const p_msg)
 {
+    can_status_t    status  = eCAN_OK;
 
-}*/
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+    CAN_ASSERT( true == g_can[can_ch].is_init );
+    CAN_ASSERT( NULL != p_msg );
+
+    if ( can_ch < eCAN_CH_NUM_OF )
+    {
+        if  (   ( true == g_can[can_ch].is_init )
+            &&  ( NULL != p_msg ))
+        {
+            // Get data from RX FIFO
+            if ( eRING_BUFFER_OK != ring_buffer_get( g_can[can_ch].rx_buf, (can_msg_t*) p_msg ))
+            {
+                status = eCAN_WAR_EMPTY;
+            }
+        }
+        else
+        {
+            status = eCAN_ERROR;
+        }
+    }
+    else
+    {
+        status = eCAN_ERROR;
+    }
+
+
+    return status;
+}
 
 
 #if 0

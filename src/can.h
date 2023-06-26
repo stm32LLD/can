@@ -72,6 +72,8 @@ typedef enum
     eCAN_DLC_32,        /**< 32 bytes data field */
     eCAN_DLC_48,        /**< 48 bytes data field */
     eCAN_DLC_64,        /**< 64 bytes data field */
+
+    eCAN_DLC_NUM_OF,
 } can_dlc_opt_t;
 
 /**
