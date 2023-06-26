@@ -63,6 +63,66 @@
 #endif
 
 
+/**
+ *  CAN Communication Channels
+ *
+ *  @note   Must start with enumeration of 0!
+ */
+typedef enum
+{
+    // USER CODE BEGIN...
+
+    eCAN_SYSTEM = 0,    /**<System CAN-bus */
+
+    // USER CODE END...
+
+    eCAN_CH_NUM_OF     /**<Number of all UART channels */
+} can_ch_t;
+
+/**
+ *  CAJ pins configuration structure
+ */
+typedef struct
+{
+    GPIO_TypeDef *    p_port;       /**<Port */
+    uint32_t          pin;          /**<Pin */
+    uint32_t          pull;         /**<Pull device mode */
+    uint32_t          af;           /**<Alternative function */
+} can_pin_cfg_t;
+
+/**
+ *  CAN baudrate settings
+ */
+typedef struct
+{
+    uint32_t prescaler;     /**<Specifies the value by which the oscillator frequency is divided for generating the nominal bit time quanta. This parameter must be a number between 1 and 512 */
+    uint32_t sjw;           /**<SyncJumpWidth. This parameter must be a number between 1 and 128 */
+    uint32_t seg1;          /**<Number of time quanta in Bit Segment 1. This parameter must be a number between 2 and 256 */
+    uint32_t seg2;          /**<Number of time quanta in Bit Segment 2. This parameter must be a number between 2 and 256 */
+} can_baud_cfg_t;
+
+/**
+ *  CAN configuration structure
+ */
+typedef struct
+{
+    FDCAN_GlobalTypeDef *   p_instance;     /**<UART instance */
+    can_baud_cfg_t          baud_nor;       /**<Normal baudrate non-FD */
+    can_baud_cfg_t          baud_data;      /**<Data baudrate FD applicable */
+    bool                    fd;             /**<CAN-FD enable */
+    uint16_t                tx_buf_size;    /**<Transmission buffer size in bytes */
+    uint16_t                rx_buf_size;    /**<Reception buffer size in bytes */
+    can_pin_cfg_t           tx_pin;         /**<Tx pin config */
+    can_pin_cfg_t           rx_pin;         /**<Rx pin config */
+    uint32_t                irq_prio;       /**<Interrupt priority */
+    IRQn_Type               irq_num;        /**<Interrupt number */
+} can_cfg_t;
+
+////////////////////////////////////////////////////////////////////////////////
+// Functions
+////////////////////////////////////////////////////////////////////////////////
+can_cfg_t * can_cfg_get_config(const can_ch_t can_ch);
+
 #endif // __CAN_CFG_H
 
 ////////////////////////////////////////////////////////////////////////////////

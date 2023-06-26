@@ -1,0 +1,132 @@
+// Copyright (c) 2023  Ziga Miklosic
+// All Rights Reserved
+////////////////////////////////////////////////////////////////////////////////
+/**
+*@file      can_cfg.c
+*@brief     Configuration for CAN LL drivers based on STM32 HAL library
+*@author    Ziga Miklosic
+*@email     ziga.miklosic@gmail.si
+*@date      26.06.2023
+*@version   V0.1.0
+*/
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @addtogroup UART_CFG
+* @{ <!-- BEGIN GROUP -->
+*/
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// Includes
+////////////////////////////////////////////////////////////////////////////////
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+#include "can_cfg.h"
+
+// USER INCLUDE BEGIN...
+
+#include "config/proj_cfg.h"
+#include "config/pin_mapper.h"
+
+// USER INCLUDE END...
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Definitions
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// Variables
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ *      CAN Channel Configuration
+ */
+static const can_cfg_t g_can_cfg[eCAN_CH_NUM_OF] =
+{
+    // USER CODE BEGIN...
+
+    // =============================================================
+    //      System CAN Settings
+    // =============================================================
+    [eCAN_SYSTEM] =
+    {
+        .p_instance     = FDCAN1,
+        .baud_nor =
+        {
+            .prescaler  = 20U,
+            .sjw        = 1U,
+            .seg1       = 12U,
+            .seg2       = 2U,
+        },
+        .fd = false,
+        .baud_data =
+        {
+            .prescaler  = 1U,
+            .sjw        = 1U,
+            .seg1       = 1U,
+            .seg2       = 1U,
+        },
+        .rx_buf_size    = 512U,
+        .tx_buf_size    = 512U,
+        .tx_pin =
+        {
+            .p_port = CAN_TX__PORT,
+            .pin    = CAN_TX__PIN,
+            .pull   = CAN_TX__PULL,
+            .af     = CAN_TX__AF
+        },
+        .rx_pin =
+        {
+            .p_port = CAN_RX__PORT,
+            .pin    = CAN_RX__PIN,
+            .pull   = CAN_RX__PULL,
+            .af     = CAN_RX__AF
+        },
+        .irq_prio   = PROJ_CFG_IRQ_PRIO_CAN_SYS,
+        .irq_num    = FDCAN1_IT0_IRQn,
+    },
+
+    // USER CODE END...
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// Functions
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+/**
+* @} <!-- END GROUP -->
+*/
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+/**
+*@addtogroup CAN_CFG_API
+* @{ <!-- BEGIN GROUP -->
+*
+* 	Following function are part of CAN Configuration API.
+*/
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+/**
+*       Get CAN configurations
+*
+* @return       &g_can_cfg - Address to CAN config table
+*/
+////////////////////////////////////////////////////////////////////////////////
+can_cfg_t * can_cfg_get_config(const can_ch_t can_ch)
+{
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+
+    return (can_cfg_t*) &g_can_cfg[can_ch];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/**
+* @} <!-- END GROUP -->
+*/
+////////////////////////////////////////////////////////////////////////////////
