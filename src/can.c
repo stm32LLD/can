@@ -84,6 +84,10 @@ static void         can_enable_clock    (const FDCAN_GlobalTypeDef * p_inst);
 static void         can_disable_clock   (const FDCAN_GlobalTypeDef * p_inst);
 static void         can_init_gpio       (const can_pin_cfg_t * const p_pin_cfg);
 static void         can_deinit_gpio     (const can_pin_cfg_t * const p_pin_cfg);
+static inline bool  can_find_channel    (const FDCAN_GlobalTypeDef * p_inst, can_ch_t * const p_ch);
+static inline void  can_process_isr     (const FDCAN_GlobalTypeDef * p_inst);
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Functions
@@ -118,7 +122,6 @@ static can_status_t can_init_fifo(const can_ch_t can_ch, const uint32_t tx_size,
 
     return status;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /*!
@@ -196,8 +199,68 @@ static void can_deinit_gpio(const can_pin_cfg_t * const p_pin_cfg)
     HAL_GPIO_DeInit( p_pin_cfg->p_port, p_pin_cfg->pin );
 }
 
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Find CAN channel by hardware instance
+*
+* @param[in]    p_inst      - CAN periphery (FDCAN1, FDCAN2,...)
+* @param[out]   p_opt       - CAN enumeration option
+* @return       status      - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
+static inline bool can_find_channel(const FDCAN_GlobalTypeDef * p_inst, can_ch_t * const p_ch)
+{
+    bool found = false;
+
+    for ( uint8_t ch = 0U; ch < eCAN_CH_NUM_OF; ch++ )
+    {
+        // Get CAN configurations
+        const can_cfg_t * p_can_cfg = can_cfg_get_config( ch );
+
+        if ( p_inst == p_can_cfg->p_instance )
+        {
+            found = true;
+            *p_ch = ch;
+            break;
+        }
+    }
+
+    return found;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Process CAN ISR
+*
+* @param[in]    p_inst     - CAN periphery (FDCAN1, FDCAN2,...)
+* @return       void
+*/
+////////////////////////////////////////////////////////////////////////////////
+static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
+{
+    can_ch_t can_ch = 0;
+
+    // Find CAN channel by hardware instance
+    if ( true == can_find_channel( p_inst, &can_ch ))
+    {
+
+    }
+}
 
 
+#if defined(FDCAN1)
+    ////////////////////////////////////////////////////////////////////////////////
+    /*!
+    * @brief        FDCAN 1 ISR
+    *
+    * @return       void
+    */
+    ////////////////////////////////////////////////////////////////////////////////
+    void FDCAN1_IT0_IRQHandler(void)
+    {
+        can_process_isr( FDCAN1 );
+    }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 /**
