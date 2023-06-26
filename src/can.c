@@ -133,16 +133,6 @@ static can_status_t can_init_fifo(const can_ch_t can_ch, const uint32_t tx_size,
 ////////////////////////////////////////////////////////////////////////////////
 static void can_enable_clock(const FDCAN_GlobalTypeDef * p_inst)
 {
-    RCC_PeriphCLKInitTypeDef PeriphClkInit =
-    {
-        .PeriphClockSelection   = RCC_PERIPHCLK_FDCAN,
-        .FdcanClockSelection    = RCC_FDCANCLKSOURCE_PCLK1,
-    };
-
-    // TODO: Check if this is realy needed!
-    (void) HAL_RCCEx_PeriphCLKConfig( &PeriphClkInit );
-
-
 #if defined(FDCAN1)
     if ( FDCAN1 == p_inst )
     {
@@ -252,6 +242,8 @@ static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
     FDCAN_RxHeaderTypeDef msg_header;
     static uint8_t data[8] = {0};
 
+    static uint32_t rx_cnt = 0;
+
     // Find CAN channel by hardware instance
     if ( true == can_find_channel( p_inst, &can_ch ))
     {
@@ -266,6 +258,8 @@ static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
 
             data[0]++;
             data[0]--;
+
+            rx_cnt++;
         }
     }
 }
