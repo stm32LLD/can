@@ -164,7 +164,7 @@ static void can_disable_clock(const FDCAN_GlobalTypeDef * p_inst)
 * @return       status      - Status of operation
 */
 ////////////////////////////////////////////////////////////////////////////////
-static void uart_init_gpio(const can_pin_cfg_t * const p_pin_cfg)
+static void can_init_gpio(const can_pin_cfg_t * const p_pin_cfg)
 {
     GPIO_InitTypeDef gpio_init = {0};
 
@@ -216,14 +216,12 @@ static void can_deinit_gpio(const can_pin_cfg_t * const p_pin_cfg)
 
 ////////////////////////////////////////////////////////////////////////////////
 /*!
-* @brief        CAN initialization
+* @brief        Initialize CAN
 *
-* @return       status - Status of operation
+* @param[in]    can_ch  - CAN communication channel
+* @return       status  - Status of operation
 */
 ////////////////////////////////////////////////////////////////////////////////
-
-
-
 can_status_t can_init(const can_ch_t can_ch)
 {
     can_status_t status = eCAN_OK;
@@ -285,7 +283,8 @@ can_status_t can_init(const can_ch_t can_ch)
                 __HAL_FDCAN_ENABLE_IT( &g_can[can_ch].handle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE );
 
                 // Error interrupt (error passive, error active & bus-off)
-                __HAL_FDCAN_ENABLE_IT( &g_can[can_ch].handle, ( FDCAN_IT_ERROR_PASSIVE | FDCAN_IT_ERROR_WARNING | FDCAN_IT_BUS_OFF ));
+                // TODO: CHeck for that!!
+                //__HAL_FDCAN_ENABLE_IT( &g_can[can_ch].handle, ( FDCAN_IT_ERROR_PASSIVE | FDCAN_IT_ERROR_WARNING | FDCAN_IT_BUS_OFF ));
 
                 // Setup UART interrupt priority and enable it
                 NVIC_SetPriority( p_can_cfg->irq_num, p_can_cfg->irq_prio );
@@ -304,24 +303,80 @@ can_status_t can_init(const can_ch_t can_ch)
     return status;
 }
 
-
-/*
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        De-Initialize CAN
+*
+* @param[in]    can_ch      - CAN communication channel
+* @return       status      - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
 can_status_t can_deinit(const can_ch_t can_ch)
 {
     can_status_t status = eCAN_OK;
 
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+
+    if ( can_ch < eCAN_CH_NUM_OF )
+    {
+        if  ( true == g_can[can_ch].is_init )
+        {
+            // Get CAN configurations
+            const can_cfg_t * p_can_cfg = can_cfg_get_config( can_ch );
+
+            // De-init gpios
+            can_deinit_gpio( &( p_can_cfg->tx_pin ));
+            can_deinit_gpio( &( p_can_cfg->rx_pin ));
+
+            // Disable clock
+            can_disable_clock( p_can_cfg->p_instance );
+
+            // De-Init success
+            if ( eCAN_OK == status )
+            {
+                g_can[can_ch].is_init = false;
+            }
+        }
+    }
+    else
+    {
+        status = eCAN_ERROR;
+    }
 
     return status;
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Get CAN initialization flag
+*
+* @param[in]    can_ch      - CAN communication channel
+* @param[out]   p_is_init   - Pointer to init flag
+* @return       status      - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
 can_status_t can_is_init(const can_ch_t can_ch, bool * const p_is_init)
 {
     can_status_t status = eCAN_OK;
 
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+    CAN_ASSERT( NULL != p_is_init );
+
+    if (    ( can_ch < eCAN_CH_NUM_OF )
+        &&  ( NULL != p_is_init ))
+    {
+        *p_is_init = g_can[can_ch].is_init;
+    }
+    else
+    {
+        status = eCAN_ERROR;
+    }
 
     return status;
 }
+
+
+/*
 
 
 can_status_t can_transmit(const can_ch_t can_ch, const uint8_t * const p_data, const uint32_t size)
