@@ -1,0 +1,72 @@
+// Copyright (c) 2023 Ziga Miklosic
+// All Rights Reserved
+////////////////////////////////////////////////////////////////////////////////
+/**
+*@file      can_cfg.h
+*@brief     Configuration for CAN LL drivers based on STM32 HAL library
+*@author    Ziga Miklosic
+*@email		ziga.miklosic@gmail.si
+*@date      26.06.2023
+*@version   V0.1.0
+*/
+////////////////////////////////////////////////////////////////////////////////
+/**
+*@addtogroup CAN_CFG_API
+* @{ <!-- BEGIN GROUP -->
+*
+*/
+////////////////////////////////////////////////////////////////////////////////
+
+#ifndef __CAN_CFG_H
+#define __CAN_CFG_H
+
+////////////////////////////////////////////////////////////////////////////////
+// Includes
+////////////////////////////////////////////////////////////////////////////////
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+
+// USER INCLUDE BEGIN...
+
+#include "stm32g4xx_hal.h"
+#include "config/proj_cfg.h"
+
+// USER INCLUDE END...
+
+////////////////////////////////////////////////////////////////////////////////
+// Definitions
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ *  Enable/Disable assertions
+ */
+#define CAN_CFG_ASSERT_EN                       ( 1 )
+
+// USER CODE END...
+
+// Disable asserts in releases
+#ifndef DEBUG
+    #undef CAN_CFG_ASSERT_EN
+    #define CAN_CFG_ASSERT_EN 0
+#endif
+
+/**
+ *  Assert definition
+ */
+#if ( 1 == CAN_CFG_ASSERT_EN )
+    // USER CODE BEGIN...
+    #define CAN_ASSERT(x)                       PROJ_CFG_ASSERT(x)
+    // USER CODE END...
+#else
+    #define CAN_ASSERT(x)                       { ; }
+#endif
+
+
+#endif // __CAN_CFG_H
+
+////////////////////////////////////////////////////////////////////////////////
+/**
+* @} <!-- END GROUP -->
+*/
+////////////////////////////////////////////////////////////////////////////////
