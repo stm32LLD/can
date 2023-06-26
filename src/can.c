@@ -86,8 +86,9 @@ static void             can_init_gpio       (const can_pin_cfg_t * const p_pin_c
 static void             can_deinit_gpio     (const can_pin_cfg_t * const p_pin_cfg);
 static inline bool      can_find_channel    (const FDCAN_GlobalTypeDef * p_inst, can_ch_t * const p_ch);
 static inline void      can_process_isr     (const FDCAN_GlobalTypeDef * p_inst);
+static void             can_send_msg        (const can_ch_t can_ch, const can_msg_t * const p_msg);
 static can_dlc_opt_t    can_dlc_to_real     (const uint32_t dlc_raw);
-//static uint32_t         can_dlc_to_raw      (const can_dlc_opt_t dlt_opt);
+static uint32_t         can_dlc_to_raw      (const can_dlc_opt_t dlt_opt);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,9 +264,69 @@ static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
             // Put to Rx fifo
             (void) ring_buffer_add( g_can[can_ch].rx_buf, (can_msg_t*) &can_msg );
         }
+
+
+        // TX FIFO EMPTY
+        if ( __HAL_FDCAN_GET_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_TX_FIFO_EMPTY ))
+        {
+            __HAL_FDCAN_CLEAR_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_TX_FIFO_EMPTY );
+
+            // Take data from Tx buffer and send it
+            if ( eRING_BUFFER_OK == ring_buffer_get( g_can[can_ch].tx_buf, (can_msg_t*) &can_msg ))
+            {
+                // Send message
+                can_send_msg( can_ch, &can_msg );
+            }
+
+            //Tx FIFO empty -> stop TXE interrupt
+            else
+            {
+                //__HAL_FDCAN_DISABLE_IT( &g_can[can_ch].handle, FDCAN_FLAG_TX_FIFO_EMPTY );
+                //HAL_FDCAN_DeactivateNotification( &g_can[can_ch].handle, FDCAN_IT_TX_FIFO_EMPTY );
+            }
+        }
     }
 }
 
+
+static void can_send_msg(const can_ch_t can_ch, const can_msg_t * const p_msg)
+{
+    // Assemble header
+    FDCAN_TxHeaderTypeDef header =
+    {
+        .Identifier             = p_msg->id,
+        .IdType                 = FDCAN_STANDARD_ID,
+        .TxFrameType            = FDCAN_DATA_FRAME,
+        .DataLength             = can_dlc_to_raw( p_msg->dlc ),
+        .ErrorStateIndicator    = FDCAN_ESI_ACTIVE,
+        .BitRateSwitch          = FDCAN_BRS_OFF,
+        .FDFormat               = (( false == p_msg->fd ) ? FDCAN_CLASSIC_CAN : FDCAN_FD_CAN ),
+        .TxEventFifoControl     = FDCAN_NO_TX_EVENTS,
+        .MessageMarker          = 0,
+    };
+
+    // Put to TX Fifo
+    (void) HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &header, (uint8_t*) &( p_msg->data ));
+}
+
+
+/*FDCAN_TxHeaderTypeDef msg_header =
+{
+    .Identifier             = 0x222,
+    .IdType                 = FDCAN_STANDARD_ID,
+    .TxFrameType            = FDCAN_DATA_FRAME,
+    .DataLength             = FDCAN_DLC_BYTES_8,
+    .ErrorStateIndicator    = FDCAN_ESI_ACTIVE,
+    .BitRateSwitch          = FDCAN_BRS_OFF,
+    .FDFormat               = FDCAN_CLASSIC_CAN,
+    .TxEventFifoControl     = FDCAN_NO_TX_EVENTS,
+    .MessageMarker          = 0,
+};
+
+data[0]++;
+data[7]++;
+
+HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );*/
 
 static uint32_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
 {
@@ -305,12 +366,12 @@ static can_dlc_opt_t can_dlc_to_real(const uint32_t dlc_raw)
     return dcl;
 }
 
-/*
+
 static uint32_t can_dlc_to_raw(const can_dlc_opt_t dlt_opt)
 {
     return gu32_dlc_map[dlt_opt];
 }
-*/
+
 
 
 #if defined(FDCAN1)
@@ -410,7 +471,7 @@ can_status_t can_init(const can_ch_t can_ch)
                 // Enable reception buffer not empty interrupt
                 //__HAL_FDCAN_ENABLE_IT( &g_can[can_ch].handle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE );
 
-                HAL_FDCAN_ActivateNotification( &g_can[can_ch].handle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0 );
+                HAL_FDCAN_ActivateNotification( &g_can[can_ch].handle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TX_FIFO_EMPTY, 0 );
 
                 // Error interrupt (error passive, error active & bus-off)
                 // TODO: CHeck for that!!
@@ -513,43 +574,8 @@ can_status_t can_is_init(const can_ch_t can_ch, bool * const p_is_init)
 can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
 {
     can_status_t    status  = eCAN_OK;
-    //can_msg_t       can_msg = {0};
+    can_msg_t       can_msg = {0};
 
-
-
-    (void) p_msg;
-    static uint8_t data[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
-
-    FDCAN_TxHeaderTypeDef msg_header =
-    {
-        .Identifier             = 0x222,
-        .IdType                 = FDCAN_STANDARD_ID,
-        .TxFrameType            = FDCAN_DATA_FRAME,
-        .DataLength             = FDCAN_DLC_BYTES_8,
-        .ErrorStateIndicator    = FDCAN_ESI_ACTIVE,
-        .BitRateSwitch          = FDCAN_BRS_OFF,
-        .FDFormat               = FDCAN_CLASSIC_CAN,
-        .TxEventFifoControl     = FDCAN_NO_TX_EVENTS,
-        .MessageMarker          = 0,
-    };
-
-    data[0]++;
-    data[7]++;
-
-    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
-
-    msg_header.Identifier = 0x333;
-    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
-
-    msg_header.Identifier = 0x444;
-    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
-
-   // msg_header.Identifier = 0x555;
-   // HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
-
-
-
-#if 0
     CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
     CAN_ASSERT( true == g_can[can_ch].is_init );
     CAN_ASSERT( NULL != p_msg );
@@ -561,22 +587,24 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
         {
             if ( p_msg-> dlc < eCAN_DLC_NUM_OF )
             {
-                // Copy can message
-                memcpy( &can_msg, p_msg, sizeof( can_msg_t ));
-
                 // Enter critical
                 __disable_irq();
 
-                // FIFO full
-                if ( eRING_BUFFER_OK != ring_buffer_add( g_can[can_ch].tx_buf, (can_msg_t*) &can_msg ))
+                // FIFO free
+                if ( 3 == HAL_FDCAN_GetTxFifoFreeLevel( &g_can[can_ch].handle ))
                 {
-                    status = eCAN_WAR_FULL;
+                    can_send_msg( can_ch, p_msg );
                 }
                 else
                 {
-                    // Raise TX empty IRQ
-                    // NOTE: Later in irq message is being transmitted
-                    __HAL_FDCAN_ENABLE_IT( &g_can[can_ch].handle, FDCAN_IT_TX_FIFO_EMPTY );
+                    // Copy can message
+                    memcpy( &can_msg, p_msg, sizeof( can_msg_t ));
+
+                    // FIFO full
+                    if ( eRING_BUFFER_OK != ring_buffer_add( g_can[can_ch].tx_buf, (can_msg_t*) &can_msg ))
+                    {
+                        status = eCAN_WAR_FULL;
+                    }
                 }
 
                 // Exit critical
@@ -596,7 +624,6 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
     {
         status = eCAN_ERROR;
     }
-#endif
 
     return status;
 }
