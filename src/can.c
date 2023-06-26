@@ -87,7 +87,6 @@ static void             can_deinit_gpio     (const can_pin_cfg_t * const p_pin_c
 static inline bool      can_find_channel    (const FDCAN_GlobalTypeDef * p_inst, can_ch_t * const p_ch);
 static inline void      can_process_isr     (const FDCAN_GlobalTypeDef * p_inst);
 static can_dlc_opt_t    can_dlc_to_real     (const uint32_t dlc_raw);
-
 //static uint32_t         can_dlc_to_raw      (const can_dlc_opt_t dlt_opt);
 
 
@@ -514,8 +513,43 @@ can_status_t can_is_init(const can_ch_t can_ch, bool * const p_is_init)
 can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
 {
     can_status_t    status  = eCAN_OK;
-    can_msg_t       can_msg = {0};
+    //can_msg_t       can_msg = {0};
 
+
+
+    (void) p_msg;
+    static uint8_t data[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
+
+    FDCAN_TxHeaderTypeDef msg_header =
+    {
+        .Identifier             = 0x222,
+        .IdType                 = FDCAN_STANDARD_ID,
+        .TxFrameType            = FDCAN_DATA_FRAME,
+        .DataLength             = FDCAN_DLC_BYTES_8,
+        .ErrorStateIndicator    = FDCAN_ESI_ACTIVE,
+        .BitRateSwitch          = FDCAN_BRS_OFF,
+        .FDFormat               = FDCAN_CLASSIC_CAN,
+        .TxEventFifoControl     = FDCAN_NO_TX_EVENTS,
+        .MessageMarker          = 0,
+    };
+
+    data[0]++;
+    data[7]++;
+
+    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
+
+    msg_header.Identifier = 0x333;
+    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
+
+    msg_header.Identifier = 0x444;
+    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
+
+   // msg_header.Identifier = 0x555;
+   // HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
+
+
+
+#if 0
     CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
     CAN_ASSERT( true == g_can[can_ch].is_init );
     CAN_ASSERT( NULL != p_msg );
@@ -562,6 +596,7 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
     {
         status = eCAN_ERROR;
     }
+#endif
 
     return status;
 }
