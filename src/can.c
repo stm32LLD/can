@@ -61,7 +61,7 @@ typedef struct
  */
 static const ring_buffer_attr_t g_buf_attr =
 {
-   .item_size   = sizeof( uint8_t ),    // Byte size
+   .item_size   = sizeof( can_msg_t ),  // CAN Message size
    .override    = false,                // Do not lost data
    .p_mem       = NULL,                 // Dynamically allocate
 };
@@ -462,16 +462,47 @@ can_status_t can_is_init(const can_ch_t can_ch, bool * const p_is_init)
 
 
 
+can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
+{
+    can_status_t status = eCAN_OK;
+
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+    CAN_ASSERT( true == g_can[can_ch].is_init );
+    CAN_ASSERT( NULL != p_msg );
+
+    if (    ( can_ch < eCAN_CH_NUM_OF )
+        &&  ( true == g_can[can_ch].is_init )
+        &&  ( NULL != p_msg ))
+    {
+
+    }
+    else
+    {
+        status = eCAN_ERROR;
+    }
+
+    return status;
+}
+
+
+/*can_status_t can_receive(const can_ch_t can_ch, can_msg_t * const p_msg)
+{
+
+}*/
+
+
+#if 0
+
 can_status_t can_transmit(const can_ch_t can_ch, const uint8_t * const p_data, const uint32_t size)
 {
     can_status_t    status          = eCAN_OK;
 
-    (void) size;
+/*    (void) size;
     (void) p_data;
 
     static uint8_t data[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
 
-    const FDCAN_TxHeaderTypeDef msg_header =
+    FDCAN_TxHeaderTypeDef msg_header =
     {
         .Identifier             = 0x222,
         .IdType                 = FDCAN_STANDARD_ID,
@@ -489,19 +520,26 @@ can_status_t can_transmit(const can_ch_t can_ch, const uint8_t * const p_data, c
 
     HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
 
-#if 0
+    msg_header.Identifier = 0x333;
+    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
+
+    msg_header.Identifier = 0x444;
+    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
+
+    msg_header.Identifier = 0x555;
+    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );*/
+
+
     uint32_t        buf_free_space  = 0U;
 
     CAN_ASSERT( uart_ch < eCAN_CH_NUM_OF );
     CAN_ASSERT( true == g_can[can_ch].is_init );
     CAN_ASSERT( NULL != p_data );
-    CAN_ASSERT( size <= CAN_CFG_MTU );
 
     if ( can_ch < eCAN_CH_NUM_OF )
     {
         if  (   ( true == g_can[can_ch].is_init )
-            &&  ( NULL != p_data )
-            &&  ( size <= CAN_CFG_MTU ))
+            &&  ( NULL != p_data ))
         {
             // Enter critical
             __disable_irq();
@@ -541,7 +579,6 @@ can_status_t can_transmit(const can_ch_t can_ch, const uint8_t * const p_data, c
     {
         status = eUART_ERROR;
     }
-#endif
 
     return status;
 }
@@ -557,7 +594,7 @@ can_status_t can_receive(const can_ch_t can_ch, uint8_t * const p_data)
     return status;
 }
 
-
+#endif
 
 
 
