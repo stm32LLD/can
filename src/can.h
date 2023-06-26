@@ -27,6 +27,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "../../can_cfg.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 // Definitions
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,14 +45,20 @@
  */
 typedef enum
 {
-    eCAN_OK        = 0x00U,    /**<Normal operation */
-    eCAN_ERROR     = 0x01U,    /**<General error code */
+    eCAN_OK         = 0x00U,    /**<Normal operation */
+    eCAN_ERROR      = 0x01U,    /**<General error code */
+    eCAN_WAR_EMPTY  = 0x02U,    /**<Buffer empty warning */
+    eCAN_WAR_FULL   = 0x04U,    /**<Buffer full warning */
 } can_status_t;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Functions
 ////////////////////////////////////////////////////////////////////////////////
-can_status_t can_init     (void);
+can_status_t can_init       (const can_ch_t can_ch);
+can_status_t can_deinit     (const can_ch_t can_ch);
+can_status_t can_is_init    (const can_ch_t can_ch, bool * const p_is_init);
+can_status_t can_transmit   (const can_ch_t can_ch, const uint8_t * const p_data, const uint32_t size);
+can_status_t can_receive    (const can_ch_t can_ch, uint8_t * const p_data);
 
 #endif // __CAN_H
 

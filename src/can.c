@@ -68,13 +68,58 @@
 * @return       status - Status of operation
 */
 ////////////////////////////////////////////////////////////////////////////////
-can_status_t can_init(void)
+
+
+
+can_status_t can_init(const can_ch_t can_ch)
+{
+    can_status_t status = eCAN_OK;
+
+    (void) can_ch;
+
+    return status;
+}
+
+
+/*
+can_status_t can_deinit(const can_ch_t can_ch)
 {
     can_status_t status = eCAN_OK;
 
 
     return status;
 }
+
+
+can_status_t can_is_init(const can_ch_t can_ch, bool * const p_is_init)
+{
+    can_status_t status = eCAN_OK;
+
+
+    return status;
+}
+
+
+can_status_t can_transmit(const can_ch_t can_ch, const uint8_t * const p_data, const uint32_t size)
+{
+    can_status_t status = eCAN_OK;
+
+
+    return status;
+}
+
+
+can_status_t can_receive(const can_ch_t can_ch, uint8_t * const p_data)
+{
+    can_status_t status = eCAN_OK;
+
+
+    return status;
+}
+*/
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
