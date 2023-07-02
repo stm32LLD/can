@@ -37,6 +37,37 @@
 // Definitions
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ *  CAN baudrate options
+ */
+enum
+{
+    eCAN_BAUDRATE_125k = 0,
+    eCAN_BAUDRATE_250k,
+    eCAN_BAUDRATE_500k,
+    eCAN_BAUDRATE_1M,
+    eCAN_BAUDRATE_2M,
+
+    eCAN_BAUDRATE_NUM_OF
+};
+
+/**
+ *  PRECALCULATED BAUDRATE SETTINGS
+ *
+ *  @note   Applicable only to uses where FDCAN peripheral clock is set to 150 MHz !
+ *
+ *          Useful webpage for baudrate calcualtions: http://www.bittiming.can-wiki.info/
+ */
+static const can_baud_cfg_t g_can_baud_cfg[eCAN_BAUDRATE_NUM_OF] =
+{
+    [eCAN_BAUDRATE_125k]    = { .prescaler = 75U,   .sjw = 1U, .seg1 = 13U, .seg2 = 2U },
+    [eCAN_BAUDRATE_250k]    = { .prescaler = 40U,   .sjw = 1U, .seg1 = 12U, .seg2 = 2U },
+    [eCAN_BAUDRATE_500k]    = { .prescaler = 20U,   .sjw = 1U, .seg1 = 12U, .seg2 = 2U },
+    [eCAN_BAUDRATE_1M]      = { .prescaler = 10U,   .sjw = 1U, .seg1 = 12U, .seg2 = 2U },
+    [eCAN_BAUDRATE_2M]      = { .prescaler = 5U,    .sjw = 1U, .seg1 = 12U, .seg2 = 2U },
+};
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Variables
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,23 +85,30 @@ static const can_cfg_t g_can_cfg[eCAN_CH_NUM_OF] =
     [eCAN_SYSTEM] =
     {
         .p_instance     = FDCAN1,
+
+        // Normal Baudrate
         .baud_nor =
         {
-            .prescaler  = 20U,
-            .sjw        = 1U,
-            .seg1       = 12U,
-            .seg2       = 2U,
+            .prescaler  = g_can_baud_cfg[eCAN_BAUDRATE_500k].prescaler,
+            .sjw        = g_can_baud_cfg[eCAN_BAUDRATE_500k].sjw,
+            .seg1       = g_can_baud_cfg[eCAN_BAUDRATE_500k].seg1,
+            .seg2       = g_can_baud_cfg[eCAN_BAUDRATE_500k].seg2,
         },
+
+        // Use FD
         .fd = false,
+
+        // Fast Baudrate
         .baud_data =
         {
-            .prescaler  = 1U,
-            .sjw        = 1U,
-            .seg1       = 1U,
-            .seg2       = 1U,
+            .prescaler  = g_can_baud_cfg[eCAN_BAUDRATE_2M].prescaler,
+            .sjw        = g_can_baud_cfg[eCAN_BAUDRATE_2M].sjw,
+            .seg1       = g_can_baud_cfg[eCAN_BAUDRATE_2M].seg1,
+            .seg2       = g_can_baud_cfg[eCAN_BAUDRATE_2M].seg2,
         },
-        .rx_buf_size    = 512U,
-        .tx_buf_size    = 512U,
+
+        .rx_buf_size    = 8U,
+        .tx_buf_size    = 8U,
         .tx_pin =
         {
             .p_port = CAN_TX__PORT,
