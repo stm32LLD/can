@@ -5,8 +5,24 @@ Module shall support all STM32 device famility, as all STM32 MCU incorporates CA
 
 ## **Dependencies**
 
-### **1. STM32 HAL library**
-STM32 CAN LL driver module uses STM32 HAL library.
+### **1. Ring Buffer**
+STM32 CAN LL driver module needs [Ring Buffer](https://github.com/Misc-library-for-DSP/ring_buffer) C module in order to provide FIFO buffer funtionalities. Ring Buffer module is part of *General Embedded C Libraries Ecosystem*.
+
+It is mandatory to be under following path in order to be compatible "General Embedded C Libraries Ecosystem":
+```
+root/middleware/ring_buffer/src/ring_buffer.h
+```
+
+### **2. GPIO STM32 LL Driver**
+STM32 UART LL driver module needs [GPIO](https://github.com/stm32LLD/gpio) C module in order to initialize UART pins clock.
+
+It is mandatory to be under following path in order to be compatible "General Embedded C Libraries Ecosystem":
+```
+root/drivers/peripheral/gpio/gpio/src/gpio.h
+```
+
+### **3. STM32 HAL library**
+STM32 UART LL driver module uses STM32 HAL library.
 
 
 ## **API**

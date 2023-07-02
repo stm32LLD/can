@@ -10,5 +10,6 @@ and this project/module adheres to [Semantic Versioning](https://semver.org/spec
 ### Added
 - Initial implementation of CAN module
 - Module setup via configuration file
+- Transmission & reception API implemented as non-blocking via FIFO buffers 
 
 ---

@@ -471,8 +471,6 @@ can_status_t can_init(const can_ch_t can_ch)
             if ( eCAN_OK == status )
             {
                 // Enable reception buffer not empty interrupt
-                //__HAL_FDCAN_ENABLE_IT( &g_can[can_ch].handle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE );
-
                 HAL_FDCAN_ActivateNotification( &g_can[can_ch].handle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TX_FIFO_EMPTY, 0 );
 
                 // Error interrupt (error passive, error active & bus-off)
