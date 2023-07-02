@@ -107,8 +107,10 @@ static const can_cfg_t g_can_cfg[eCAN_CH_NUM_OF] =
             .seg2       = g_can_baud_cfg[eCAN_BAUDRATE_2M].seg2,
         },
 
+        // NOTE: Size of single element in buffer is 72 bytes!
         .rx_buf_size    = 8U,
-        .tx_buf_size    = 8U,
+        .tx_buf_size    = 16U,
+
         .tx_pin =
         {
             .p_port = CAN_TX__PORT,
@@ -116,6 +118,7 @@ static const can_cfg_t g_can_cfg[eCAN_CH_NUM_OF] =
             .pull   = CAN_TX__PULL,
             .af     = CAN_TX__AF
         },
+
         .rx_pin =
         {
             .p_port = CAN_RX__PORT,
@@ -123,6 +126,7 @@ static const can_cfg_t g_can_cfg[eCAN_CH_NUM_OF] =
             .pull   = CAN_RX__PULL,
             .af     = CAN_RX__AF
         },
+
         .irq_prio   = PROJ_CFG_IRQ_PRIO_CAN_SYS,
         .irq_num    = FDCAN1_IT0_IRQn,
     },
