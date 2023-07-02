@@ -329,7 +329,7 @@ static void can_send_msg(const can_ch_t can_ch, const can_msg_t * const p_msg)
         .TxFrameType            = FDCAN_DATA_FRAME,
         .DataLength             = can_dlc_to_raw( p_msg->dlc ),
         .ErrorStateIndicator    = FDCAN_ESI_ACTIVE,
-        .BitRateSwitch          = FDCAN_BRS_OFF,
+        .BitRateSwitch          = FDCAN_BRS_ON,
         .FDFormat               = (( false == p_msg->fd ) ? FDCAN_CLASSIC_CAN : FDCAN_FD_CAN ),
         .TxEventFifoControl     = FDCAN_NO_TX_EVENTS,
         .MessageMarker          = 0,
