@@ -13,6 +13,12 @@
 /*!
 * @addtogroup IWDT
 * @{ <!-- BEGIN GROUP -->
+*
+*
+* @note     This CAN driver is written specifically for STM32 FDCAN!
+*           It uses only FIFO 0, for tx purposes!
+*
+*
 */
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,6 +80,29 @@ static const ring_buffer_attr_t g_buf_attr =
  *  CAN control block
  */
 static can_ctrl_t g_can[eCAN_CH_NUM_OF] = {0};
+
+/**
+ *  CAN DLC mapping table
+ */
+static uint32_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
+{
+        [eCAN_DLC_0]    = FDCAN_DLC_BYTES_0,
+        [eCAN_DLC_1]    = FDCAN_DLC_BYTES_1,
+        [eCAN_DLC_2]    = FDCAN_DLC_BYTES_2,
+        [eCAN_DLC_3]    = FDCAN_DLC_BYTES_3,
+        [eCAN_DLC_4]    = FDCAN_DLC_BYTES_4,
+        [eCAN_DLC_5]    = FDCAN_DLC_BYTES_5,
+        [eCAN_DLC_6]    = FDCAN_DLC_BYTES_6,
+        [eCAN_DLC_7]    = FDCAN_DLC_BYTES_7,
+        [eCAN_DLC_8]    = FDCAN_DLC_BYTES_8,
+        [eCAN_DLC_12]   = FDCAN_DLC_BYTES_12,
+        [eCAN_DLC_16]   = FDCAN_DLC_BYTES_16,
+        [eCAN_DLC_20]   = FDCAN_DLC_BYTES_20,
+        [eCAN_DLC_24]   = FDCAN_DLC_BYTES_24,
+        [eCAN_DLC_32]   = FDCAN_DLC_BYTES_32,
+        [eCAN_DLC_48]   = FDCAN_DLC_BYTES_48,
+        [eCAN_DLC_64]   = FDCAN_DLC_BYTES_64,
+};
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -277,18 +306,19 @@ static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
                 // Send message
                 can_send_msg( can_ch, &can_msg );
             }
-
-            //Tx FIFO empty -> stop TXE interrupt
-            else
-            {
-                //__HAL_FDCAN_DISABLE_IT( &g_can[can_ch].handle, FDCAN_FLAG_TX_FIFO_EMPTY );
-                //HAL_FDCAN_DeactivateNotification( &g_can[can_ch].handle, FDCAN_IT_TX_FIFO_EMPTY );
-            }
         }
     }
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Send CAN message
+*
+* @param[in]    can_ch  - CAN communication channel
+* @param[in]    p_msg   - CAN message to send
+* @return       void
+*/
+////////////////////////////////////////////////////////////////////////////////
 static void can_send_msg(const can_ch_t can_ch, const can_msg_t * const p_msg)
 {
     // Assemble header
@@ -309,70 +339,42 @@ static void can_send_msg(const can_ch_t can_ch, const can_msg_t * const p_msg)
     (void) HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &header, (uint8_t*) &( p_msg->data ));
 }
 
-
-/*FDCAN_TxHeaderTypeDef msg_header =
-{
-    .Identifier             = 0x222,
-    .IdType                 = FDCAN_STANDARD_ID,
-    .TxFrameType            = FDCAN_DATA_FRAME,
-    .DataLength             = FDCAN_DLC_BYTES_8,
-    .ErrorStateIndicator    = FDCAN_ESI_ACTIVE,
-    .BitRateSwitch          = FDCAN_BRS_OFF,
-    .FDFormat               = FDCAN_CLASSIC_CAN,
-    .TxEventFifoControl     = FDCAN_NO_TX_EVENTS,
-    .MessageMarker          = 0,
-};
-
-data[0]++;
-data[7]++;
-
-HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );*/
-
-static uint32_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
-{
-        [eCAN_DLC_0]    = FDCAN_DLC_BYTES_0,
-        [eCAN_DLC_1]    = FDCAN_DLC_BYTES_1,
-        [eCAN_DLC_2]    = FDCAN_DLC_BYTES_2,
-        [eCAN_DLC_3]    = FDCAN_DLC_BYTES_3,
-        [eCAN_DLC_4]    = FDCAN_DLC_BYTES_4,
-        [eCAN_DLC_5]    = FDCAN_DLC_BYTES_5,
-        [eCAN_DLC_6]    = FDCAN_DLC_BYTES_6,
-        [eCAN_DLC_7]    = FDCAN_DLC_BYTES_7,
-        [eCAN_DLC_8]    = FDCAN_DLC_BYTES_8,
-        [eCAN_DLC_12]   = FDCAN_DLC_BYTES_12,
-        [eCAN_DLC_16]   = FDCAN_DLC_BYTES_16,
-        [eCAN_DLC_20]   = FDCAN_DLC_BYTES_20,
-        [eCAN_DLC_24]   = FDCAN_DLC_BYTES_24,
-        [eCAN_DLC_32]   = FDCAN_DLC_BYTES_32,
-        [eCAN_DLC_48]   = FDCAN_DLC_BYTES_48,
-        [eCAN_DLC_64]   = FDCAN_DLC_BYTES_64,
-};
-
-
-
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Convert raw coded DLC to real
+*
+* @param[in]    dcl_raw     - RAW coded DLC
+* @return       dlc         - Real DLC
+*/
+////////////////////////////////////////////////////////////////////////////////
 static can_dlc_opt_t can_dlc_to_real(const uint32_t dlc_raw)
 {
-    can_dlc_opt_t dcl = eCAN_DLC_0;
+    can_dlc_opt_t dlc = eCAN_DLC_0;
 
     for ( can_dlc_opt_t opt = eCAN_DLC_0; opt < eCAN_DLC_NUM_OF; opt++ )
     {
         if ( dlc_raw == gu32_dlc_map[opt] )
         {
-            dcl = opt;
+            dlc = opt;
             break;
         }
     }
 
-    return dcl;
+    return dlc;
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Convert real DLC to raw coded
+*
+* @param[in]    dlc         - Real DLC
+* @return       dcl_raw     - RAW coded DLC
+*/
+////////////////////////////////////////////////////////////////////////////////
 static uint32_t can_dlc_to_raw(const can_dlc_opt_t dlt_opt)
 {
     return gu32_dlc_map[dlt_opt];
 }
-
-
 
 #if defined(FDCAN1)
     ////////////////////////////////////////////////////////////////////////////////
@@ -438,7 +440,7 @@ can_status_t can_init(const can_ch_t can_ch)
             g_can[can_ch].handle.Instance                   = p_can_cfg->p_instance;
             g_can[can_ch].handle.Init.ClockDivider          = FDCAN_CLOCK_DIV1;
             g_can[can_ch].handle.Init.FrameFormat           = FDCAN_FRAME_FD_BRS;
-            g_can[can_ch].handle.Init.Mode                  = FDCAN_MODE_NORMAL; //FDCAN_MODE_INTERNAL_LOOPBACK;     // TODO: Only testing! Make back to: FDCAN_MODE_NORMAL;
+            g_can[can_ch].handle.Init.Mode                  = FDCAN_MODE_NORMAL;
             g_can[can_ch].handle.Init.AutoRetransmission    = DISABLE;
             g_can[can_ch].handle.Init.TransmitPause         = DISABLE;
             g_can[can_ch].handle.Init.ProtocolException     = DISABLE;
@@ -569,8 +571,18 @@ can_status_t can_is_init(const can_ch_t can_ch, bool * const p_is_init)
     return status;
 }
 
-
-
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Transmit CAN message
+*
+* @note     This function is non-blocking!
+* @note     Function returns "eCAN_WAR_FULL" when Tx FIFO is full.
+*
+* @param[in]    can_ch      - CAN communication channel
+* @param[in]    p_msg       - CAN message to transmit
+* @return       status      - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
 can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
 {
     can_status_t    status  = eCAN_OK;
@@ -591,7 +603,7 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
                 __disable_irq();
 
                 // FIFO free
-                if ( 3 == HAL_FDCAN_GetTxFifoFreeLevel( &g_can[can_ch].handle ))
+                if ( 3U == HAL_FDCAN_GetTxFifoFreeLevel( &g_can[can_ch].handle ))
                 {
                     can_send_msg( can_ch, p_msg );
                 }
@@ -628,7 +640,18 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
     return status;
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Receive CAN message
+*
+* @note     This function is non-blocking!
+* @note     Function returns "eCAN_WAR_EMPTY" when Rx FIFO is empty.
+*
+* @param[in]    can_ch      - CAN communication channel
+* @param[out]   p_msg       - Received CAN message
+* @return       status      - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
 can_status_t can_receive(const can_ch_t can_ch, can_msg_t * const p_msg)
 {
     can_status_t    status  = eCAN_OK;
@@ -661,115 +684,6 @@ can_status_t can_receive(const can_ch_t can_ch, can_msg_t * const p_msg)
 
     return status;
 }
-
-
-#if 0
-
-can_status_t can_transmit(const can_ch_t can_ch, const uint8_t * const p_data, const uint32_t size)
-{
-    can_status_t    status          = eCAN_OK;
-
-/*    (void) size;
-    (void) p_data;
-
-    static uint8_t data[8] = { 0, 1, 2, 3, 4, 5, 6, 0 };
-
-    FDCAN_TxHeaderTypeDef msg_header =
-    {
-        .Identifier             = 0x222,
-        .IdType                 = FDCAN_STANDARD_ID,
-        .TxFrameType            = FDCAN_DATA_FRAME,
-        .DataLength             = FDCAN_DLC_BYTES_8,
-        .ErrorStateIndicator    = FDCAN_ESI_ACTIVE,
-        .BitRateSwitch          = FDCAN_BRS_OFF,
-        .FDFormat               = FDCAN_CLASSIC_CAN,
-        .TxEventFifoControl     = FDCAN_NO_TX_EVENTS,
-        .MessageMarker          = 0,
-    };
-
-    data[0]++;
-    data[7]++;
-
-    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
-
-    msg_header.Identifier = 0x333;
-    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
-
-    msg_header.Identifier = 0x444;
-    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );
-
-    msg_header.Identifier = 0x555;
-    HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &msg_header, (uint8_t*) &data );*/
-
-
-    uint32_t        buf_free_space  = 0U;
-
-    CAN_ASSERT( uart_ch < eCAN_CH_NUM_OF );
-    CAN_ASSERT( true == g_can[can_ch].is_init );
-    CAN_ASSERT( NULL != p_data );
-
-    if ( can_ch < eCAN_CH_NUM_OF )
-    {
-        if  (   ( true == g_can[can_ch].is_init )
-            &&  ( NULL != p_data ))
-        {
-            // Enter critical
-            __disable_irq();
-
-            // Check if there is space in Tx FIFO
-            (void) ring_buffer_get_free( g_can[can_ch].tx_buf, &buf_free_space );
-
-            // There is space in Tx FIFO for complete message
-            if ( size <= buf_free_space )
-            {
-                // Put all data to Tx FIFO
-                for ( uint32_t byte_idx = 0; byte_idx < size; byte_idx++ )
-                {
-                    (void) ring_buffer_add( g_can[can_ch].tx_buf, (uint8_t*) &p_data[byte_idx] );
-                }
-
-                // Raise TX empty IRQ
-                // NOTE: Later in irq message is being transmitted
-                __HAL_FDCAN_ENABLE_IT( &g_can[can_ch].handle, FDCAN_IT_TX_FIFO_EMPTY );
-            }
-
-            // No space in Tx FIFO
-            else
-            {
-                status = eUART_WAR_FULL;
-            }
-
-            // Exit critical
-            __enable_irq();
-        }
-        else
-        {
-            status = eUART_ERROR;
-        }
-    }
-    else
-    {
-        status = eUART_ERROR;
-    }
-
-    return status;
-}
-
-
-can_status_t can_receive(const can_ch_t can_ch, uint8_t * const p_data)
-{
-    can_status_t status = eCAN_OK;
-
-    (void) can_ch;
-    (void) p_data;
-
-    return status;
-}
-
-#endif
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /**
