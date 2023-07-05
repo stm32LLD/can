@@ -38,10 +38,17 @@
 // Definitions
 ////////////////////////////////////////////////////////////////////////////////
 
+// USER CODE BEGIN...
+
 /**
  *  Enable/Disable assertions
  */
 #define CAN_CFG_ASSERT_EN                       ( 1 )
+
+/**
+ *  Enable/Disable test mode (internal loop-back mode)
+ */
+#define CAN_CFG_LOOP_BACK_EN                    ( 1 )
 
 // USER CODE END...
 

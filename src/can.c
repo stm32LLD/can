@@ -440,10 +440,15 @@ can_status_t can_init(const can_ch_t can_ch)
             g_can[can_ch].handle.Instance                   = p_can_cfg->p_instance;
             g_can[can_ch].handle.Init.ClockDivider          = FDCAN_CLOCK_DIV1;
             g_can[can_ch].handle.Init.FrameFormat           = FDCAN_FRAME_FD_BRS;
-            g_can[can_ch].handle.Init.Mode                  = FDCAN_MODE_NORMAL;
             g_can[can_ch].handle.Init.AutoRetransmission    = DISABLE;
             g_can[can_ch].handle.Init.TransmitPause         = DISABLE;
             g_can[can_ch].handle.Init.ProtocolException     = DISABLE;
+
+            #if ( 1 == CAN_CFG_LOOP_BACK_EN )
+                g_can[can_ch].handle.Init.Mode                  = FDCAN_MODE_INTERNAL_LOOPBACK;
+            #else
+                g_can[can_ch].handle.Init.Mode                  = FDCAN_MODE_NORMAL;
+            #endif
 
             // Nominal baudrate settgins
             g_can[can_ch].handle.Init.NominalPrescaler      = p_can_cfg->baud_nor.prescaler;
