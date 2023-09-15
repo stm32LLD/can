@@ -165,6 +165,9 @@ static can_status_t can_init_fifo(const can_ch_t can_ch, const uint32_t tx_size,
 ////////////////////////////////////////////////////////////////////////////////
 static void can_enable_clock(const FDCAN_GlobalTypeDef * p_inst)
 {
+    // Select PCLK1 as input to FDCAN periphery
+    __HAL_RCC_FDCAN_CONFIG( RCC_FDCANCLKSOURCE_PCLK1 );
+
 #if defined(FDCAN1)
     if ( FDCAN1 == p_inst )
     {
@@ -603,9 +606,6 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
         {
             if ( p_msg-> dlc < eCAN_DLC_NUM_OF )
             {
-                // Enter critical
-                __disable_irq();
-
                 // FIFO free
                 if ( 3U == HAL_FDCAN_GetTxFifoFreeLevel( &g_can[can_ch].handle ))
                 {
@@ -622,9 +622,6 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
                         status = eCAN_WAR_FULL;
                     }
                 }
-
-                // Exit critical
-                __enable_irq();
             }
             else
             {
