@@ -48,7 +48,7 @@
 /**
  *  Enable/Disable test mode (internal loop-back mode)
  */
-#define CAN_CFG_LOOP_BACK_EN                    ( 1 )
+#define CAN_CFG_LOOP_BACK_EN                    ( 0 )
 
 // USER CODE END...
 
@@ -116,7 +116,6 @@ typedef struct
     FDCAN_GlobalTypeDef *   p_instance;     /**<UART instance */
     can_baud_cfg_t          baud_nor;       /**<Normal baudrate non-FD */
     can_baud_cfg_t          baud_data;      /**<Data baudrate FD applicable */
-    bool                    fd;             /**<CAN-FD enable */
     uint16_t                tx_buf_size;    /**<Transmission buffer size in bytes */
     uint16_t                rx_buf_size;    /**<Reception buffer size in bytes */
     can_pin_cfg_t           tx_pin;         /**<Tx pin config */

@@ -95,9 +95,6 @@ static const can_cfg_t g_can_cfg[eCAN_CH_NUM_OF] =
             .seg2       = g_can_baud_cfg[eCAN_BAUDRATE_500k].seg2,
         },
 
-        // Use FD
-        .fd = false,
-
         // Fast Baudrate
         .baud_data =
         {
