@@ -117,9 +117,6 @@ static void             can_deinit_gpio     (const can_pin_cfg_t * const p_pin_c
 static inline bool      can_find_channel    (const FDCAN_GlobalTypeDef * p_inst, can_ch_t * const p_ch);
 static inline void      can_process_isr     (const FDCAN_GlobalTypeDef * p_inst);
 static void             can_send_msg        (const can_ch_t can_ch, const can_msg_t * const p_msg);
-static can_dlc_opt_t    can_dlc_to_real     (const uint32_t dlc_raw);
-static uint32_t         can_dlc_to_raw      (const can_dlc_opt_t dlt_opt);
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Functions
@@ -341,43 +338,6 @@ static void can_send_msg(const can_ch_t can_ch, const can_msg_t * const p_msg)
 
     // Put to TX Fifo
     (void) HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &header, (uint8_t*) &( p_msg->data ));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-/*!
-* @brief        Convert raw coded DLC to real
-*
-* @param[in]    dcl_raw     - RAW coded DLC
-* @return       dlc         - Real DLC
-*/
-////////////////////////////////////////////////////////////////////////////////
-static can_dlc_opt_t can_dlc_to_real(const uint32_t dlc_raw)
-{
-    can_dlc_opt_t dlc = eCAN_DLC_0;
-
-    for ( can_dlc_opt_t opt = eCAN_DLC_0; opt < eCAN_DLC_NUM_OF; opt++ )
-    {
-        if ( dlc_raw == gu32_dlc_map[opt] )
-        {
-            dlc = opt;
-            break;
-        }
-    }
-
-    return dlc;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-/*!
-* @brief        Convert real DLC to raw coded
-*
-* @param[in]    dlc         - Real DLC
-* @return       dcl_raw     - RAW coded DLC
-*/
-////////////////////////////////////////////////////////////////////////////////
-static uint32_t can_dlc_to_raw(const can_dlc_opt_t dlt_opt)
-{
-    return gu32_dlc_map[dlt_opt];
 }
 
 #if defined(FDCAN1)
@@ -684,6 +644,43 @@ can_status_t can_receive(const can_ch_t can_ch, can_msg_t * const p_msg)
 
 
     return status;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Convert raw coded DLC to real
+*
+* @param[in]    dcl_raw     - RAW coded DLC
+* @return       dlc         - Real DLC
+*/
+////////////////////////////////////////////////////////////////////////////////
+can_dlc_opt_t can_dlc_to_real(const uint32_t dlc_raw)
+{
+    can_dlc_opt_t dlc = eCAN_DLC_0;
+
+    for ( can_dlc_opt_t opt = eCAN_DLC_0; opt < eCAN_DLC_NUM_OF; opt++ )
+    {
+        if ( dlc_raw == gu32_dlc_map[opt] )
+        {
+            dlc = opt;
+            break;
+        }
+    }
+
+    return dlc;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Convert real DLC to raw coded
+*
+* @param[in]    dlc         - Real DLC
+* @return       dcl_raw     - RAW coded DLC
+*/
+////////////////////////////////////////////////////////////////////////////////
+uint32_t can_dlc_to_raw(const can_dlc_opt_t dlt_opt)
+{
+    return gu32_dlc_map[dlt_opt];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
