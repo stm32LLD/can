@@ -64,14 +64,14 @@ typedef struct
 } can_ctrl_t;
 
 /**
- *  FIFO buffer attributes
+ *  DLC to raw and HAL definition mapping table
  */
-static const ring_buffer_attr_t g_buf_attr =
+typedef struct
 {
-   .item_size   = sizeof( can_msg_t ),  // CAN Message size
-   .override    = false,                // Do not lost data
-   .p_mem       = NULL,                 // Dynamically allocate
-};
+    uint32_t    hal;    /**<HAL expected DLC value */
+    uint8_t     raw;    /**<Raw value */
+} can_dlc_map_t;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Variables
@@ -85,13 +85,6 @@ static can_ctrl_t g_can[eCAN_CH_NUM_OF] = {0};
 /**
  *  CAN DLC mapping table
  */
-
-typedef struct
-{
-    uint32_t    hal;    /**<HAL expected DLC value */
-    uint8_t     raw;    /**<Raw value */
-} can_dlc_map_t;
-
 static can_dlc_map_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
 {
         [eCAN_DLC_0]    = { .hal = FDCAN_DLC_BYTES_0, 	.raw = 0U },
@@ -112,6 +105,15 @@ static can_dlc_map_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
         [eCAN_DLC_64]   = { .hal = FDCAN_DLC_BYTES_64,	.raw = 64U },
 };
 
+/**
+ *  FIFO buffer attributes
+ */
+static const ring_buffer_attr_t g_buf_attr =
+{
+   .item_size   = sizeof( can_msg_t ),  // CAN Message size
+   .override    = false,                // Do not lost data
+   .p_mem       = NULL,                 // Dynamically allocate
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 // Function prototypes
