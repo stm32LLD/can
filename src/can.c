@@ -85,24 +85,31 @@ static can_ctrl_t g_can[eCAN_CH_NUM_OF] = {0};
 /**
  *  CAN DLC mapping table
  */
-static uint32_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
+
+typedef struct
 {
-        [eCAN_DLC_0]    = FDCAN_DLC_BYTES_0,
-        [eCAN_DLC_1]    = FDCAN_DLC_BYTES_1,
-        [eCAN_DLC_2]    = FDCAN_DLC_BYTES_2,
-        [eCAN_DLC_3]    = FDCAN_DLC_BYTES_3,
-        [eCAN_DLC_4]    = FDCAN_DLC_BYTES_4,
-        [eCAN_DLC_5]    = FDCAN_DLC_BYTES_5,
-        [eCAN_DLC_6]    = FDCAN_DLC_BYTES_6,
-        [eCAN_DLC_7]    = FDCAN_DLC_BYTES_7,
-        [eCAN_DLC_8]    = FDCAN_DLC_BYTES_8,
-        [eCAN_DLC_12]   = FDCAN_DLC_BYTES_12,
-        [eCAN_DLC_16]   = FDCAN_DLC_BYTES_16,
-        [eCAN_DLC_20]   = FDCAN_DLC_BYTES_20,
-        [eCAN_DLC_24]   = FDCAN_DLC_BYTES_24,
-        [eCAN_DLC_32]   = FDCAN_DLC_BYTES_32,
-        [eCAN_DLC_48]   = FDCAN_DLC_BYTES_48,
-        [eCAN_DLC_64]   = FDCAN_DLC_BYTES_64,
+    uint32_t    hal;    /**<HAL expected DLC value */
+    uint8_t     raw;    /**<Raw value */
+} can_dlc_map_t;
+
+static can_dlc_map_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
+{
+        [eCAN_DLC_0]    = { .hal = FDCAN_DLC_BYTES_0, 	.raw = 0U },
+        [eCAN_DLC_1]    = { .hal = FDCAN_DLC_BYTES_1, 	.raw = 1U },
+        [eCAN_DLC_2]    = { .hal = FDCAN_DLC_BYTES_2, 	.raw = 2U },
+        [eCAN_DLC_3]    = { .hal = FDCAN_DLC_BYTES_3, 	.raw = 3U },
+        [eCAN_DLC_4]    = { .hal = FDCAN_DLC_BYTES_4, 	.raw = 4U },
+        [eCAN_DLC_5]    = { .hal = FDCAN_DLC_BYTES_5, 	.raw = 5U },
+        [eCAN_DLC_6]    = { .hal = FDCAN_DLC_BYTES_6, 	.raw = 6U },
+        [eCAN_DLC_7]    = { .hal = FDCAN_DLC_BYTES_7, 	.raw = 7U },
+        [eCAN_DLC_8]    = { .hal = FDCAN_DLC_BYTES_8, 	.raw = 8U },
+        [eCAN_DLC_12]   = { .hal = FDCAN_DLC_BYTES_12,	.raw = 12U },
+        [eCAN_DLC_16]   = { .hal = FDCAN_DLC_BYTES_16,	.raw = 16U },
+        [eCAN_DLC_20]   = { .hal = FDCAN_DLC_BYTES_20,	.raw = 20U },
+        [eCAN_DLC_24]   = { .hal = FDCAN_DLC_BYTES_24,	.raw = 24U },
+        [eCAN_DLC_32]   = { .hal = FDCAN_DLC_BYTES_32,	.raw = 32U },
+        [eCAN_DLC_48]   = { .hal = FDCAN_DLC_BYTES_48,	.raw = 48U },
+        [eCAN_DLC_64]   = { .hal = FDCAN_DLC_BYTES_64,	.raw = 64U },
 };
 
 
@@ -117,6 +124,8 @@ static void             can_deinit_gpio     (const can_pin_cfg_t * const p_pin_c
 static inline bool      can_find_channel    (const FDCAN_GlobalTypeDef * p_inst, can_ch_t * const p_ch);
 static inline void      can_process_isr     (const FDCAN_GlobalTypeDef * p_inst);
 static void             can_send_msg        (const can_ch_t can_ch, const can_msg_t * const p_msg);
+static can_dlc_opt_t    can_dlc_raw_to_hal  (const uint32_t dlc_hal);
+static uint32_t         can_dlc_hal_to_raw  (const can_dlc_opt_t dlt_opt);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Functions
@@ -288,7 +297,7 @@ static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
 
             // Assemble CAN message
             can_msg.id  = header.Identifier;
-            can_msg.dlc = can_dlc_to_real( header.DataLength );
+            can_msg.dlc = can_dlc_raw_to_hal( header.DataLength );
             can_msg.fd  = ( FDCAN_CLASSIC_CAN == header.FDFormat ) ? false : true;
 
             // Put to Rx fifo
@@ -328,7 +337,7 @@ static void can_send_msg(const can_ch_t can_ch, const can_msg_t * const p_msg)
         .Identifier             = p_msg->id,
         .IdType                 = FDCAN_STANDARD_ID,
         .TxFrameType            = FDCAN_DATA_FRAME,
-        .DataLength             = can_dlc_to_raw( p_msg->dlc ),
+        .DataLength             = can_dlc_hal_to_raw( p_msg->dlc ),
         .ErrorStateIndicator    = FDCAN_ESI_ACTIVE,
         .BitRateSwitch          = FDCAN_BRS_ON,
         .FDFormat               = (( false == p_msg->fd ) ? FDCAN_CLASSIC_CAN : FDCAN_FD_CAN ),
@@ -339,6 +348,44 @@ static void can_send_msg(const can_ch_t can_ch, const can_msg_t * const p_msg)
     // Put to TX Fifo
     (void) HAL_FDCAN_AddMessageToTxFifoQ( &g_can[can_ch].handle, (FDCAN_TxHeaderTypeDef*) &header, (uint8_t*) &( p_msg->data ));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Convert raw coded DLC to real
+*
+* @param[in]    dcl_raw     - RAW coded DLC
+* @return       dlc         - Real DLC
+*/
+////////////////////////////////////////////////////////////////////////////////
+static can_dlc_opt_t can_dlc_raw_to_hal(const uint32_t dlc_hal)
+{
+    can_dlc_opt_t dlc = eCAN_DLC_0;
+
+    for ( can_dlc_opt_t opt = eCAN_DLC_0; opt < eCAN_DLC_NUM_OF; opt++ )
+    {
+        if ( dlc_hal == gu32_dlc_map[opt].hal )
+        {
+            dlc = opt;
+            break;
+        }
+    }
+
+    return dlc;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Convert real DLC to raw coded
+*
+* @param[in]    dlc         - Real DLC
+* @return       dcl_raw     - RAW coded DLC
+*/
+////////////////////////////////////////////////////////////////////////////////
+static uint32_t can_dlc_hal_to_raw(const can_dlc_opt_t dlt_opt)
+{
+    return gu32_dlc_map[dlt_opt].hal;
+}
+
 
 #if defined(FDCAN1)
     ////////////////////////////////////////////////////////////////////////////////
@@ -642,25 +689,62 @@ can_status_t can_receive(const can_ch_t can_ch, can_msg_t * const p_msg)
         status = eCAN_ERROR;
     }
 
+    return status;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Clear all content in RX FIFO
+*
+* @param[in]    can_ch      - CAN communication channel
+* @return       status      - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
+can_status_t can_clear_rx_buf(const can_ch_t can_ch)
+{
+    can_status_t    status  = eCAN_OK;
+
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+    CAN_ASSERT( true == g_can[can_ch].is_init );
+
+    if ( can_ch < eCAN_CH_NUM_OF )
+    {
+        if ( true == g_can[can_ch].is_init )
+        {
+            // Get data from RX FIFO
+            if ( eRING_BUFFER_OK != ring_buffer_reset( g_can[can_ch].rx_buf ))
+            {
+                status = eCAN_ERROR;
+            }
+        }
+        else
+        {
+            status = eCAN_ERROR;
+        }
+    }
+    else
+    {
+        status = eCAN_ERROR;
+    }
 
     return status;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 /*!
-* @brief        Convert raw coded DLC to real
+* @brief        Convert raw number DLC to real (DLC enumeration)
 *
 * @param[in]    dcl_raw     - RAW coded DLC
-* @return       dlc         - Real DLC
+* @return       dlc         - Real (enumerated) DLC
 */
 ////////////////////////////////////////////////////////////////////////////////
-can_dlc_opt_t can_dlc_to_real(const uint32_t dlc_raw)
+can_dlc_opt_t can_dlc_raw_to_real(const uint8_t dlc_raw)
 {
     can_dlc_opt_t dlc = eCAN_DLC_0;
 
     for ( can_dlc_opt_t opt = eCAN_DLC_0; opt < eCAN_DLC_NUM_OF; opt++ )
     {
-        if ( dlc_raw == gu32_dlc_map[opt] )
+        if ( dlc_raw == gu32_dlc_map[opt].raw )
         {
             dlc = opt;
             break;
@@ -672,15 +756,15 @@ can_dlc_opt_t can_dlc_to_real(const uint32_t dlc_raw)
 
 ////////////////////////////////////////////////////////////////////////////////
 /*!
-* @brief        Convert real DLC to raw coded
+* @brief        Convert real (DLC enumeration) to raw number DLC
 *
-* @param[in]    dlc         - Real DLC
-* @return       dcl_raw     - RAW coded DLC
+* @param[in]    dlc_opt - Real (enumerated) DLC
+* @return       dcl_raw - RAW coded DLC
 */
 ////////////////////////////////////////////////////////////////////////////////
-uint32_t can_dlc_to_raw(const can_dlc_opt_t dlt_opt)
+uint8_t can_dlc_real_to_raw (const can_dlc_opt_t dlt_opt)
 {
-    return gu32_dlc_map[dlt_opt];
+    return gu32_dlc_map[dlt_opt].raw;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

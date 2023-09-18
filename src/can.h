@@ -92,14 +92,15 @@ typedef struct
 ////////////////////////////////////////////////////////////////////////////////
 // Functions
 ////////////////////////////////////////////////////////////////////////////////
-can_status_t can_init       (const can_ch_t can_ch);
-can_status_t can_deinit     (const can_ch_t can_ch);
-can_status_t can_is_init    (const can_ch_t can_ch, bool * const p_is_init);
-can_status_t can_transmit   (const can_ch_t can_ch, const can_msg_t * const p_msg);
-can_status_t can_receive    (const can_ch_t can_ch, can_msg_t * const p_msg);
+can_status_t can_init       	(const can_ch_t can_ch);
+can_status_t can_deinit     	(const can_ch_t can_ch);
+can_status_t can_is_init    	(const can_ch_t can_ch, bool * const p_is_init);
+can_status_t can_transmit   	(const can_ch_t can_ch, const can_msg_t * const p_msg);
+can_status_t can_receive    	(const can_ch_t can_ch, can_msg_t * const p_msg);
+can_status_t can_clear_rx_buf   (const can_ch_t can_ch);
 
-can_dlc_opt_t   can_dlc_to_real     (const uint32_t dlc_raw);
-uint32_t        can_dlc_to_raw      (const can_dlc_opt_t dlt_opt);
+can_dlc_opt_t can_dlc_raw_to_real (const uint8_t dlc_raw);
+uint8_t       can_dlc_real_to_raw (const can_dlc_opt_t dlt_opt);
 
 #endif // __CAN_H
 
