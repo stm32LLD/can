@@ -173,15 +173,14 @@ static can_status_t can_init_fifo(const can_ch_t can_ch, const uint32_t tx_size,
 ////////////////////////////////////////////////////////////////////////////////
 static void can_enable_clock(const FDCAN_GlobalTypeDef * p_inst)
 {
+    // Unused args
+    (void) p_inst;
+
     // Select PCLK1 as input to FDCAN periphery
     __HAL_RCC_FDCAN_CONFIG( RCC_FDCANCLKSOURCE_PCLK1 );
 
-#if defined(FDCAN1)
-    if ( FDCAN1 == p_inst )
-    {
-        __HAL_RCC_FDCAN_CLK_ENABLE();
-    }
-#endif
+    // Enable common CAN clock
+    __HAL_RCC_FDCAN_CLK_ENABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,12 +193,11 @@ static void can_enable_clock(const FDCAN_GlobalTypeDef * p_inst)
 ////////////////////////////////////////////////////////////////////////////////
 static void can_disable_clock(const FDCAN_GlobalTypeDef * p_inst)
 {
-#if defined(FDCAN1)
-    if ( FDCAN1 == p_inst )
-    {
-        __HAL_RCC_FDCAN_CLK_DISABLE();
-    }
-#endif
+    // Unused args
+    (void) p_inst;
+
+    // Disable common CAN clock
+    __HAL_RCC_FDCAN_CLK_DISABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,6 +398,34 @@ static uint32_t can_dlc_hal_to_raw(const can_dlc_opt_t dlt_opt)
     void FDCAN1_IT0_IRQHandler(void)
     {
         can_process_isr( FDCAN1 );
+    }
+#endif
+
+#if defined(FDCAN2)
+    ////////////////////////////////////////////////////////////////////////////////
+    /*!
+    * @brief        FDCAN 2 ISR
+    *
+    * @return       void
+    */
+    ////////////////////////////////////////////////////////////////////////////////
+    void FDCAN2_IT0_IRQHandler(void)
+    {
+        can_process_isr( FDCAN2 );
+    }
+#endif
+
+#if defined(FDCAN3)
+    ////////////////////////////////////////////////////////////////////////////////
+    /*!
+    * @brief        FDCAN 3 ISR
+    *
+    * @return       void
+    */
+    ////////////////////////////////////////////////////////////////////////////////
+    void FDCAN3_IT0_IRQHandler(void)
+    {
+        can_process_isr( FDCAN3 );
     }
 #endif
 
