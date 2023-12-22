@@ -559,6 +559,12 @@ can_status_t can_deinit(const can_ch_t can_ch)
     {
         if  ( true == g_can[can_ch].is_init )
         {
+            // De-init CAN
+            if ( HAL_OK != HAL_FDCAN_DeInit( &g_can[can_ch].handle ))
+            {
+                status = eCAN_ERROR;
+            }
+
             // Get CAN configurations
             const can_cfg_t * p_can_cfg = can_cfg_get_config( can_ch );
 
@@ -568,6 +574,9 @@ can_status_t can_deinit(const can_ch_t can_ch)
 
             // Disable clock
             can_disable_clock( p_can_cfg->p_instance );
+
+            // Clear pending IRQ
+            NVIC_ClearPendingIRQ( p_can_cfg->irq_num );
 
             // De-Init success
             if ( eCAN_OK == status )
