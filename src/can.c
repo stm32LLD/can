@@ -85,7 +85,7 @@ static can_ctrl_t g_can[eCAN_CH_NUM_OF] = {0};
 /**
  *  CAN DLC mapping table
  */
-static can_dlc_map_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
+static const can_dlc_map_t gu32_dlc_map[eCAN_DLC_NUM_OF] =
 {
         [eCAN_DLC_0]    = { .hal = FDCAN_DLC_BYTES_0, 	.raw = 0U },
         [eCAN_DLC_1]    = { .hal = FDCAN_DLC_BYTES_1, 	.raw = 1U },
