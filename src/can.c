@@ -49,7 +49,7 @@
  *
  *  Support version V2.0.x on
  */
-_Static_assert( 2 == RING_BUFFER_VER_MAJOR );
+_Static_assert( 3 == RING_BUFFER_VER_MAJOR );
 _Static_assert( 0 <= RING_BUFFER_VER_MINOR );
 
 /**
