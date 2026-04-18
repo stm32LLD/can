@@ -753,6 +753,16 @@ can_status_t can_clear_rx_buf(const can_ch_t can_ch)
             {
                 status = eCAN_ERROR;
             }
+
+            if ( eRING_BUFFER_OK != ring_buffer_reset( g_can[can_ch].tx_buf ))
+            {
+                status = eCAN_ERROR;
+            }
+
+            // TODO: Start/Stop periphery here if problem continues....
+            HAL_FDCAN_Stop( &g_can[can_ch].handle );
+            HAL_FDCAN_Start( &g_can[can_ch].handle );
+
         }
         else
         {
