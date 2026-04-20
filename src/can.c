@@ -531,13 +531,6 @@ can_status_t can_init(const can_ch_t can_ch)
             // Init success
             if ( eCAN_OK == status )
             {
-                // Setup global CAN filter: Accept all STD and EXT CAN IDs, reject REMOTE msgs
-                HAL_FDCAN_ConfigGlobalFilter(&g_can[can_ch].handle, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE);
-
-                // Note: The TDC offset is usually (DataPrescaler * DataTimeSeg1).
-                HAL_FDCAN_ConfigTxDelayCompensation( &g_can[can_ch].handle, p_can_cfg->baud_data.prescaler * p_can_cfg->baud_data.seg1, 0 );
-                HAL_FDCAN_EnableTxDelayCompensation( &g_can[can_ch].handle );
-
                 // Enable reception buffer not empty interrupt
                 HAL_FDCAN_ActivateNotification( &g_can[can_ch].handle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TX_FIFO_EMPTY, 0 );
 
