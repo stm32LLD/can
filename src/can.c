@@ -30,6 +30,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <string.h>
+#include <stdatomic.h>
 
 #include "can.h"
 #include "../../can_cfg.h"
@@ -115,6 +116,11 @@ static const ring_buffer_attr_t g_buf_attr =
    .p_mem       = NULL,                 // Dynamically allocate
 };
 
+/**
+ *  Common CAN clock init guard
+ */
+static _Atomic uint32_t gu32_can_clock_guard = 0U;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Function prototypes
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,14 +179,16 @@ static can_status_t can_init_fifo(const can_ch_t can_ch, const uint32_t tx_size,
 ////////////////////////////////////////////////////////////////////////////////
 static void can_enable_clock(const FDCAN_GlobalTypeDef * p_inst)
 {
-    // Unused args
-    (void) p_inst;
+    UNUSED(p_inst);
 
-    // Select PCLK1 as input to FDCAN periphery
+    // Select PLL2 as input to FDCAN periphery
     __HAL_RCC_FDCAN_CONFIG( RCC_FDCANCLKSOURCE_PCLK1 );
 
     // Enable common CAN clock
-    __HAL_RCC_FDCAN_CLK_ENABLE();
+    if( 0U == atomic_fetch_add_explicit( &gu32_can_clock_guard, 1, __ATOMIC_RELAXED ))
+    {
+        __HAL_RCC_FDCAN_CLK_ENABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,11 +201,13 @@ static void can_enable_clock(const FDCAN_GlobalTypeDef * p_inst)
 ////////////////////////////////////////////////////////////////////////////////
 static void can_disable_clock(const FDCAN_GlobalTypeDef * p_inst)
 {
-    // Unused args
-    (void) p_inst;
+    UNUSED(p_inst);
 
     // Disable common CAN clock
-    __HAL_RCC_FDCAN_CLK_DISABLE();
+    if( 1U == atomic_fetch_sub_explicit( &gu32_can_clock_guard, 1, __ATOMIC_RELAXED ))
+    {
+        __HAL_RCC_FDCAN_CLK_DISABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -292,18 +302,25 @@ static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
             // Clear flag
             __HAL_FDCAN_CLEAR_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_RX_FIFO0_NEW_MESSAGE );
 
-            // Get Rx CAN message
-            HAL_FDCAN_GetRxMessage( &g_can[can_ch].handle, FDCAN_RX_FIFO0, &header, (uint8_t*) &can_msg.data );
+            // Get number of all messages in RX FIFO
+            const uint32_t rx_msg_count = HAL_FDCAN_GetRxFifoFillLevel( &g_can[can_ch].handle, FDCAN_RX_FIFO0 );
 
-            // Assemble CAN message
-            can_msg.id  = header.Identifier;
-            can_msg.dlc = can_dlc_raw_to_hal( header.DataLength );
-            can_msg.fd  = ( FDCAN_CLASSIC_CAN == header.FDFormat ) ? false : true;
+            // Take all messages out of RX FIFO
+            for ( uint32_t msg_cnt = 0; msg_cnt < rx_msg_count; msg_cnt++ )
+            {
+                // Get Rx CAN message
+                if ( HAL_OK == HAL_FDCAN_GetRxMessage( &g_can[can_ch].handle, FDCAN_RX_FIFO0, &header, (uint8_t*) &can_msg.data ))
+                {
+                    // Assemble CAN message
+                    can_msg.id      = header.Identifier;
+                    can_msg.dlc     = can_dlc_raw_to_hal( header.DataLength );
+                    can_msg.fd      = ( FDCAN_FD_CAN == header.FDFormat );
 
-            // Put to Rx fifo
-            (void) ring_buffer_add( g_can[can_ch].rx_buf, (can_msg_t*) &can_msg );
+                    // Put to Rx fifo
+                    (void) ring_buffer_add( g_can[can_ch].rx_buf, (can_msg_t*) &can_msg );
+                }
+            }
         }
-
 
         // TX FIFO EMPTY
         if ( __HAL_FDCAN_GET_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_TX_FIFO_EMPTY ))
@@ -514,6 +531,13 @@ can_status_t can_init(const can_ch_t can_ch)
             // Init success
             if ( eCAN_OK == status )
             {
+                // Setup global CAN filter: Accept all STD and EXT CAN IDs, reject REMOTE msgs
+                HAL_FDCAN_ConfigGlobalFilter(&g_can[can_ch].handle, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE);
+
+                // Note: The TDC offset is usually (DataPrescaler * DataTimeSeg1).
+                HAL_FDCAN_ConfigTxDelayCompensation( &g_can[can_ch].handle, p_can_cfg->baud_data.prescaler * p_can_cfg->baud_data.seg1, 0 );
+                HAL_FDCAN_EnableTxDelayCompensation( &g_can[can_ch].handle );
+
                 // Enable reception buffer not empty interrupt
                 HAL_FDCAN_ActivateNotification( &g_can[can_ch].handle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TX_FIFO_EMPTY, 0 );
 
@@ -575,8 +599,9 @@ can_status_t can_deinit(const can_ch_t can_ch)
             // Disable clock
             can_disable_clock( p_can_cfg->p_instance );
 
-            // Clear pending IRQ
+            // Clear pending and disable IRQ
             NVIC_ClearPendingIRQ( p_can_cfg->irq_num );
+            NVIC_DisableIRQ( p_can_cfg->irq_num );
 
             // De-Init success
             if ( eCAN_OK == status )
@@ -636,8 +661,7 @@ can_status_t can_is_init(const can_ch_t can_ch, bool * const p_is_init)
 ////////////////////////////////////////////////////////////////////////////////
 can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
 {
-    can_status_t    status  = eCAN_OK;
-    can_msg_t       can_msg = {0};
+    can_status_t status = eCAN_OK;
 
     CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
     CAN_ASSERT( true == g_can[can_ch].is_init );
@@ -650,22 +674,36 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
         {
             if ( p_msg-> dlc < eCAN_DLC_NUM_OF )
             {
-                // FIFO free
-                if ( 3U == HAL_FDCAN_GetTxFifoFreeLevel( &g_can[can_ch].handle ))
+                // Disable TX interrupts to ensure the check-and-push operation is atomic.
+                //
+                // A race condition could occur if the HW FIFO empties after the check but
+                // before the message is queued. This would result in two critical issues:
+                //
+                //  1. Deadlock: The message sits in the SW buffer indefinitely because the
+                //               TX_FIFO_EMPTY interrupt will not fire again to trigger a buffer drain.
+                //
+                //  2. Message Reordering:  If the HW FIFO becomes empty, subsequent transmissions
+                //                          could bypass the queued message by writing directly to the hardware,
+                //                          violating FIFO sequence requirements.
+                //
+                NVIC_DisableIRQ( can_cfg_get_config(can_ch)->irq_num );
+
+                // Tx FIFO has still space
+                if ( HAL_FDCAN_GetTxFifoFreeLevel( &g_can[can_ch].handle ) > 0 )
                 {
                     can_send_msg( can_ch, p_msg );
                 }
                 else
                 {
-                    // Copy can message
-                    memcpy( &can_msg, p_msg, sizeof( can_msg_t ));
-
                     // FIFO full
-                    if ( eRING_BUFFER_OK != ring_buffer_add( g_can[can_ch].tx_buf, (can_msg_t*) &can_msg ))
+                    if ( eRING_BUFFER_OK != ring_buffer_add( g_can[can_ch].tx_buf, (can_msg_t*) p_msg ))
                     {
                         status = eCAN_WAR_FULL;
                     }
                 }
+
+                // Exit critical
+                NVIC_EnableIRQ( can_cfg_get_config(can_ch)->irq_num );
             }
             else
             {
@@ -699,7 +737,7 @@ can_status_t can_transmit(const can_ch_t can_ch, const can_msg_t * const p_msg)
 ////////////////////////////////////////////////////////////////////////////////
 can_status_t can_receive(const can_ch_t can_ch, can_msg_t * const p_msg)
 {
-    can_status_t    status  = eCAN_OK;
+    can_status_t status = eCAN_OK;
 
     CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
     CAN_ASSERT( true == g_can[can_ch].is_init );
@@ -739,7 +777,7 @@ can_status_t can_receive(const can_ch_t can_ch, can_msg_t * const p_msg)
 ////////////////////////////////////////////////////////////////////////////////
 can_status_t can_clear_rx_buf(const can_ch_t can_ch)
 {
-    can_status_t    status  = eCAN_OK;
+    can_status_t status = eCAN_OK;
 
     CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
     CAN_ASSERT( true == g_can[can_ch].is_init );
@@ -748,21 +786,61 @@ can_status_t can_clear_rx_buf(const can_ch_t can_ch)
     {
         if ( true == g_can[can_ch].is_init )
         {
+            // Enter critical, due to ring_buffer concurrency constrains
+            NVIC_DisableIRQ( can_cfg_get_config(can_ch)->irq_num );
+
             // Get data from RX FIFO
             if ( eRING_BUFFER_OK != ring_buffer_reset( g_can[can_ch].rx_buf ))
             {
                 status = eCAN_ERROR;
             }
 
+            // Exit critical
+            NVIC_EnableIRQ( can_cfg_get_config(can_ch)->irq_num );
+        }
+        else
+        {
+            status = eCAN_ERROR;
+        }
+    }
+    else
+    {
+        status = eCAN_ERROR;
+    }
+
+    return status;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Clear all content in TX FIFO
+*
+* @param[in]    can_ch      - CAN communication channel
+* @return       status      - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
+can_status_t can_clear_tx_buf(const can_ch_t can_ch)
+{
+    can_status_t status = eCAN_OK;
+
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+    CAN_ASSERT( true == g_can[can_ch].is_init );
+
+    if ( can_ch < eCAN_CH_NUM_OF )
+    {
+        if ( true == g_can[can_ch].is_init )
+        {
+            // Enter critical, due to ring_buffer concurrency constrains
+            NVIC_DisableIRQ( can_cfg_get_config(can_ch)->irq_num );
+
+            // Get data from TX FIFO
             if ( eRING_BUFFER_OK != ring_buffer_reset( g_can[can_ch].tx_buf ))
             {
                 status = eCAN_ERROR;
             }
 
-            // TODO: Start/Stop periphery here if problem continues....
-            HAL_FDCAN_Stop( &g_can[can_ch].handle );
-            HAL_FDCAN_Start( &g_can[can_ch].handle );
-
+            // Exit critical
+            NVIC_EnableIRQ( can_cfg_get_config(can_ch)->irq_num );
         }
         else
         {
