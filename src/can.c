@@ -327,55 +327,32 @@ static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
             ||  __HAL_FDCAN_GET_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_ERROR_PASSIVE )
             ||  __HAL_FDCAN_GET_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_ERROR_WARNING ))
         {
-            __HAL_FDCAN_CLEAR_FLAG( &g_can[can_ch].handle,
-                FDCAN_FLAG_BUS_OFF | FDCAN_FLAG_ERROR_PASSIVE | FDCAN_FLAG_ERROR_WARNING );
+            __HAL_FDCAN_CLEAR_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_BUS_OFF | FDCAN_FLAG_ERROR_PASSIVE | FDCAN_FLAG_ERROR_WARNING );
 
-            if ( eCAN_BUS_STATE_FAULT == g_can[can_ch].bus_state )
+            FDCAN_ProtocolStatusTypeDef psr = {0};
+            (void) HAL_FDCAN_GetProtocolStatus( &g_can[can_ch].handle, &psr );
+
+            if ( psr.BusOff )
             {
-                // FAULT is sticky — only can_deinit()/can_init() can clear it
+                // Flush SW queues — messages queued before bus-off are stale
+                (void) ring_buffer_reset( g_can[can_ch].rx_buf );
+                (void) ring_buffer_reset( g_can[can_ch].tx_buf );
+
+                // Restart node
+                HAL_FDCAN_Stop( &g_can[can_ch].handle );
+                HAL_FDCAN_Start( &g_can[can_ch].handle );
+            }
+            else if ( psr.ErrorPassive )
+            {
+                g_can[can_ch].bus_state = eCAN_BUS_STATE_ERROR;
+            }
+            else if ( psr.Warning )
+            {
+                g_can[can_ch].bus_state = eCAN_BUS_STATE_WARN;
             }
             else
             {
-                FDCAN_ProtocolStatusTypeDef psr = {0};
-                (void) HAL_FDCAN_GetProtocolStatus( &g_can[can_ch].handle, &psr );
-
-                if ( psr.BusOff )
-                {
-                    // Count only new bus-off entries, not repeated ISR fires while already off
-                    if ( eCAN_BUS_STATE_BUS_OFF != g_can[can_ch].bus_state )
-                    {
-                        g_can[can_ch].bus_off_cnt++;
-
-                        // Flush SW queues — messages queued before bus-off are stale
-                        (void) ring_buffer_reset( g_can[can_ch].rx_buf );
-                        (void) ring_buffer_reset( g_can[can_ch].tx_buf );
-                    }
-
-                    if ( g_can[can_ch].bus_off_cnt > CAN_CFG_BUS_OFF_RECOVERY_LIMIT )
-                    {
-                        // Recovery limit exceeded — stop auto-recovery and declare fault
-                        g_can[can_ch].bus_state = eCAN_BUS_STATE_FAULT;
-                        CAN_ASSERT( 0 );
-                    }
-                    else
-                    {
-                        g_can[can_ch].bus_state = eCAN_BUS_STATE_BUS_OFF;
-                        // STM32 FDCAN hardware automatically runs the 128x11 recessive
-                        // bit recovery sequence; the ISR re-fires when recovery completes
-                    }
-                }
-                else if ( psr.ErrorPassive )
-                {
-                    g_can[can_ch].bus_state = eCAN_BUS_STATE_ERROR;
-                }
-                else if ( psr.Warning )
-                {
-                    g_can[can_ch].bus_state = eCAN_BUS_STATE_WARN;
-                }
-                else
-                {
-                    g_can[can_ch].bus_state = eCAN_BUS_STATE_OK;
-                }
+                g_can[can_ch].bus_state = eCAN_BUS_STATE_OK;
             }
         }
 

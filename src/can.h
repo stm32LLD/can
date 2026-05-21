@@ -60,7 +60,6 @@ typedef enum
     eCAN_BUS_STATE_WARN     = 0x01U,    /**<Error warning limit reached (TEC or REC >= 96) */
     eCAN_BUS_STATE_ERROR    = 0x02U,    /**<Error-passive limit reached (TEC or REC >= 128) */
     eCAN_BUS_STATE_BUS_OFF  = 0x03U,    /**<Bus-off state (TEC >= 256), auto-recovery in progress */
-    eCAN_BUS_STATE_FAULT    = 0x04U,    /**<Permanent fault: bus-off recovery limit exceeded, requires can_deinit()/can_init() */
 } can_bus_state_t;
 
 /**
