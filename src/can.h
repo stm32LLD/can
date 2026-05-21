@@ -101,6 +101,15 @@ typedef struct
     bool            fd;         /**<FD message */
 } can_msg_t;
 
+/**
+ *  CAN error counters
+ */
+typedef struct
+{
+    uint32_t    tec;    /**<Transmit Error Counter (0-255; bus-off at 256) */
+    uint32_t    rec;    /**<Receive Error Counter (0-127; error-passive flag set at 128) */
+} can_err_cnt_t;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Functions
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +122,7 @@ can_status_t    can_clear_rx_buf    (const can_ch_t can_ch);
 can_status_t    can_clear_tx_buf    (const can_ch_t can_ch);
 can_status_t    can_get_bus_state       (const can_ch_t can_ch, can_bus_state_t * const p_state);
 can_status_t    can_get_bus_off_count   (const can_ch_t can_ch, uint32_t * const p_count);
+can_status_t    can_get_error_counters  (const can_ch_t can_ch, can_err_cnt_t * const p_cnt);
 
 can_dlc_opt_t   can_dlc_raw_to_real (const uint8_t dlc_raw);
 uint8_t         can_dlc_real_to_raw (const can_dlc_opt_t dlt_opt);

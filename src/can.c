@@ -982,6 +982,46 @@ can_status_t can_get_bus_off_count(const can_ch_t can_ch, uint32_t * const p_cou
 
 ////////////////////////////////////////////////////////////////////////////////
 /*!
+* @brief        Get current TEC and REC error counters
+*
+* @note     Reads the hardware error counter register directly via HAL.
+*           Useful for diagnostics: rising TEC indicates a TX-side problem
+*           (faulty transceiver, dominant-stuck bus), rising REC indicates
+*           a noisy bus or bit-timing mismatch.
+*
+* @param[in]    can_ch  - CAN communication channel
+* @param[out]   p_cnt   - Pointer to error counter structure
+* @return       status  - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
+can_status_t can_get_error_counters(const can_ch_t can_ch, can_err_cnt_t * const p_cnt)
+{
+    can_status_t status = eCAN_OK;
+
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+    CAN_ASSERT( true == g_can[can_ch].is_init );
+    CAN_ASSERT( NULL != p_cnt );
+
+    if (    ( can_ch < eCAN_CH_NUM_OF )
+        &&  ( true == g_can[can_ch].is_init )
+        &&  ( NULL != p_cnt ))
+    {
+        FDCAN_ErrorCountersTypeDef ec = {0};
+        (void) HAL_FDCAN_GetErrorCounters( &g_can[can_ch].handle, &ec );
+
+        p_cnt->tec = ec.TxErrorCnt;
+        p_cnt->rec = ec.RxErrorCnt;
+    }
+    else
+    {
+        status = eCAN_ERROR;
+    }
+
+    return status;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
 * @brief        Convert raw number DLC to real (DLC enumeration)
 *
 * @param[in]    dcl_raw     - RAW coded DLC
