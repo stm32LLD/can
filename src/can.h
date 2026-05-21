@@ -112,15 +112,14 @@ typedef struct
 ////////////////////////////////////////////////////////////////////////////////
 // Functions
 ////////////////////////////////////////////////////////////////////////////////
-can_status_t    can_init            (const can_ch_t can_ch);
-can_status_t    can_deinit          (const can_ch_t can_ch);
-can_status_t    can_is_init         (const can_ch_t can_ch, bool * const p_is_init);
-can_status_t    can_transmit        (const can_ch_t can_ch, const can_msg_t * const p_msg);
-can_status_t    can_receive         (const can_ch_t can_ch, can_msg_t * const p_msg);
-can_status_t    can_clear_rx_buf    (const can_ch_t can_ch);
-can_status_t    can_clear_tx_buf    (const can_ch_t can_ch);
+can_status_t    can_init            	(const can_ch_t can_ch);
+can_status_t    can_deinit          	(const can_ch_t can_ch);
+can_status_t    can_is_init         	(const can_ch_t can_ch, bool * const p_is_init);
+can_status_t    can_transmit        	(const can_ch_t can_ch, const can_msg_t * const p_msg);
+can_status_t    can_receive         	(const can_ch_t can_ch, can_msg_t * const p_msg);
+can_status_t    can_clear_rx_buf    	(const can_ch_t can_ch);
+can_status_t    can_clear_tx_buf    	(const can_ch_t can_ch);
 can_status_t    can_get_bus_state       (const can_ch_t can_ch, can_bus_state_t * const p_state);
-can_status_t    can_get_bus_off_count   (const can_ch_t can_ch, uint32_t * const p_count);
 can_status_t    can_get_error_counters  (const can_ch_t can_ch, can_err_cnt_t * const p_cnt);
 
 can_dlc_opt_t   can_dlc_raw_to_real (const uint8_t dlc_raw);

@@ -62,7 +62,6 @@ typedef struct
     p_ring_buffer_t     tx_buf;         /**<Transmission buffer */
     p_ring_buffer_t     rx_buf;         /**<Reception buffer */
     can_bus_state_t     bus_state;      /**<Current bus error state */
-    uint32_t            bus_off_cnt;    /**<Cumulative bus-off event counter since last init */
     bool                is_init;        /**<Initialization flag */
 } can_ctrl_t;
 
@@ -522,7 +521,6 @@ can_status_t can_init(const can_ch_t can_ch)
         {
             // Reset error tracking on every (re-)init
             g_can[can_ch].bus_state   = eCAN_BUS_STATE_OK;
-            g_can[can_ch].bus_off_cnt = 0U;
 
             // Get CAN configurations
             const can_cfg_t * p_can_cfg = can_cfg_get_config( can_ch );
@@ -915,39 +913,6 @@ can_status_t can_get_bus_state(const can_ch_t can_ch, can_bus_state_t * const p_
         &&  ( NULL != p_state ))
     {
         *p_state = g_can[can_ch].bus_state;
-    }
-    else
-    {
-        status = eCAN_ERROR;
-    }
-
-    return status;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-/*!
-* @brief        Get cumulative bus-off event count since last can_init()
-*
-* @note     Useful for diagnostics: a steadily climbing count over time
-*           indicates recurring bus problems (e.g. faulty termination or
-*           a misbehaving node). Resets to zero on every can_init() call.
-*
-* @param[in]    can_ch      - CAN communication channel
-* @param[out]   p_count     - Pointer to bus-off event counter
-* @return       status      - Status of operation
-*/
-////////////////////////////////////////////////////////////////////////////////
-can_status_t can_get_bus_off_count(const can_ch_t can_ch, uint32_t * const p_count)
-{
-    can_status_t status = eCAN_OK;
-
-    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
-    CAN_ASSERT( NULL != p_count );
-
-    if (    ( can_ch < eCAN_CH_NUM_OF )
-        &&  ( NULL != p_count ))
-    {
-        *p_count = g_can[can_ch].bus_off_cnt;
     }
     else
     {
