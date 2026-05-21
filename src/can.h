@@ -52,6 +52,18 @@ typedef enum
 } can_status_t;
 
 /**
+ *  CAN bus state
+ */
+typedef enum
+{
+    eCAN_BUS_STATE_OK       = 0x00U,    /**<Error-active, normal operation */
+    eCAN_BUS_STATE_WARN     = 0x01U,    /**<Error warning limit reached (TEC or REC >= 96) */
+    eCAN_BUS_STATE_ERROR    = 0x02U,    /**<Error-passive limit reached (TEC or REC >= 128) */
+    eCAN_BUS_STATE_BUS_OFF  = 0x03U,    /**<Bus-off state (TEC >= 256), auto-recovery in progress */
+    eCAN_BUS_STATE_FAULT    = 0x04U,    /**<Permanent fault: bus-off recovery limit exceeded, requires can_deinit()/can_init() */
+} can_bus_state_t;
+
+/**
  *  CAN DLC - Data Lenght Code
  */
 typedef enum
@@ -92,16 +104,18 @@ typedef struct
 ////////////////////////////////////////////////////////////////////////////////
 // Functions
 ////////////////////////////////////////////////////////////////////////////////
-can_status_t can_init       	(const can_ch_t can_ch);
-can_status_t can_deinit     	(const can_ch_t can_ch);
-can_status_t can_is_init    	(const can_ch_t can_ch, bool * const p_is_init);
-can_status_t can_transmit   	(const can_ch_t can_ch, const can_msg_t * const p_msg);
-can_status_t can_receive    	(const can_ch_t can_ch, can_msg_t * const p_msg);
-can_status_t can_clear_rx_buf   (const can_ch_t can_ch);
-can_status_t can_clear_tx_buf   (const can_ch_t can_ch);
+can_status_t    can_init            (const can_ch_t can_ch);
+can_status_t    can_deinit          (const can_ch_t can_ch);
+can_status_t    can_is_init         (const can_ch_t can_ch, bool * const p_is_init);
+can_status_t    can_transmit        (const can_ch_t can_ch, const can_msg_t * const p_msg);
+can_status_t    can_receive         (const can_ch_t can_ch, can_msg_t * const p_msg);
+can_status_t    can_clear_rx_buf    (const can_ch_t can_ch);
+can_status_t    can_clear_tx_buf    (const can_ch_t can_ch);
+can_status_t    can_get_bus_state       (const can_ch_t can_ch, can_bus_state_t * const p_state);
+can_status_t    can_get_bus_off_count   (const can_ch_t can_ch, uint32_t * const p_count);
 
-can_dlc_opt_t can_dlc_raw_to_real (const uint8_t dlc_raw);
-uint8_t       can_dlc_real_to_raw (const can_dlc_opt_t dlt_opt);
+can_dlc_opt_t   can_dlc_raw_to_real (const uint8_t dlc_raw);
+uint8_t         can_dlc_real_to_raw (const can_dlc_opt_t dlt_opt);
 
 #endif // __CAN_H
 

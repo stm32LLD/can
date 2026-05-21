@@ -2,7 +2,7 @@
 // All Rights Reserved
 ////////////////////////////////////////////////////////////////////////////////
 /**
-*@file      can.h
+*@file      can.c
 *@brief     CAN LL drivers based on STM32 HAL library
 *@author    Ziga Miklosic
 *@email     ziga.miklosic@gmail.si
@@ -11,12 +11,12 @@
 */
 ////////////////////////////////////////////////////////////////////////////////
 /*!
-* @addtogroup IWDT
+* @addtogroup CAN_API
 * @{ <!-- BEGIN GROUP -->
 *
 *
 * @note     This CAN driver is written specifically for STM32 FDCAN!
-*           It uses only FIFO 0, for tx purposes!
+*           It uses only FIFO 0, for rx purposes!
 *
 *
 */
@@ -61,6 +61,8 @@ typedef struct
     FDCAN_HandleTypeDef handle;         /**<FDCAN handler */
     p_ring_buffer_t     tx_buf;         /**<Transmission buffer */
     p_ring_buffer_t     rx_buf;         /**<Reception buffer */
+    can_bus_state_t     bus_state;      /**<Current bus error state */
+    uint32_t            bus_off_cnt;    /**<Cumulative bus-off event counter since last init */
     bool                is_init;        /**<Initialization flag */
 } can_ctrl_t;
 
@@ -179,14 +181,12 @@ static can_status_t can_init_fifo(const can_ch_t can_ch, const uint32_t tx_size,
 ////////////////////////////////////////////////////////////////////////////////
 static void can_enable_clock(const FDCAN_GlobalTypeDef * p_inst)
 {
-    UNUSED(p_inst);
+    UNUSED( p_inst );
 
-    // Select PLL2 as input to FDCAN periphery
-    __HAL_RCC_FDCAN_CONFIG( RCC_FDCANCLKSOURCE_PCLK1 );
-
-    // Enable common CAN clock
+    // Enable common CAN clock (shared by all FDCAN instances on STM32G4)
     if( 0U == atomic_fetch_add_explicit( &gu32_can_clock_guard, 1, __ATOMIC_RELAXED ))
     {
+        __HAL_RCC_FDCAN_CONFIG( RCC_FDCANCLKSOURCE_PCLK1 );
         __HAL_RCC_FDCAN_CLK_ENABLE();
     }
 }
@@ -196,14 +196,14 @@ static void can_enable_clock(const FDCAN_GlobalTypeDef * p_inst)
 * @brief        Disable CAN clock
 *
 * @param[in]    p_inst  - CAN peripheral instance
-* @return       status  - Status of operation
+* @return       void
 */
 ////////////////////////////////////////////////////////////////////////////////
 static void can_disable_clock(const FDCAN_GlobalTypeDef * p_inst)
 {
-    UNUSED(p_inst);
+    UNUSED( p_inst );
 
-    // Disable common CAN clock
+    // Disable common CAN clock (shared by all FDCAN instances on STM32G4)
     if( 1U == atomic_fetch_sub_explicit( &gu32_can_clock_guard, 1, __ATOMIC_RELAXED ))
     {
         __HAL_RCC_FDCAN_CLK_DISABLE();
@@ -289,7 +289,7 @@ static inline bool can_find_channel(const FDCAN_GlobalTypeDef * p_inst, can_ch_t
 ////////////////////////////////////////////////////////////////////////////////
 static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
 {
-    can_ch_t                can_ch  = 0;
+    can_ch_t                can_ch  = (can_ch_t) 0;
     FDCAN_RxHeaderTypeDef   header  = {0};
     can_msg_t               can_msg = {0};
 
@@ -322,16 +322,80 @@ static inline void can_process_isr(const FDCAN_GlobalTypeDef * p_inst)
             }
         }
 
-        // TX FIFO EMPTY
+        // Bus error conditions — read protocol status to get the actual current state
+        if (    __HAL_FDCAN_GET_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_BUS_OFF )
+            ||  __HAL_FDCAN_GET_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_ERROR_PASSIVE )
+            ||  __HAL_FDCAN_GET_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_ERROR_WARNING ))
+        {
+            __HAL_FDCAN_CLEAR_FLAG( &g_can[can_ch].handle,
+                FDCAN_FLAG_BUS_OFF | FDCAN_FLAG_ERROR_PASSIVE | FDCAN_FLAG_ERROR_WARNING );
+
+            if ( eCAN_BUS_STATE_FAULT == g_can[can_ch].bus_state )
+            {
+                // FAULT is sticky — only can_deinit()/can_init() can clear it
+            }
+            else
+            {
+                FDCAN_ProtocolStatusTypeDef psr = {0};
+                (void) HAL_FDCAN_GetProtocolStatus( &g_can[can_ch].handle, &psr );
+
+                if ( psr.BusOff )
+                {
+                    // Count only new bus-off entries, not repeated ISR fires while already off
+                    if ( eCAN_BUS_STATE_BUS_OFF != g_can[can_ch].bus_state )
+                    {
+                        g_can[can_ch].bus_off_cnt++;
+
+                        // Flush SW queues — messages queued before bus-off are stale
+                        (void) ring_buffer_reset( g_can[can_ch].rx_buf );
+                        (void) ring_buffer_reset( g_can[can_ch].tx_buf );
+                    }
+
+                    if ( g_can[can_ch].bus_off_cnt > CAN_CFG_BUS_OFF_RECOVERY_LIMIT )
+                    {
+                        // Recovery limit exceeded — stop auto-recovery and declare fault
+                        g_can[can_ch].bus_state = eCAN_BUS_STATE_FAULT;
+                        CAN_ASSERT( 0 );
+                    }
+                    else
+                    {
+                        g_can[can_ch].bus_state = eCAN_BUS_STATE_BUS_OFF;
+                        // STM32 FDCAN hardware automatically runs the 128x11 recessive
+                        // bit recovery sequence; the ISR re-fires when recovery completes
+                    }
+                }
+                else if ( psr.ErrorPassive )
+                {
+                    g_can[can_ch].bus_state = eCAN_BUS_STATE_ERROR;
+                }
+                else if ( psr.Warning )
+                {
+                    g_can[can_ch].bus_state = eCAN_BUS_STATE_WARN;
+                }
+                else
+                {
+                    g_can[can_ch].bus_state = eCAN_BUS_STATE_OK;
+                }
+            }
+        }
+
+        // TX FIFO EMPTY — drain SW queue into all available HW TX FIFO slots
         if ( __HAL_FDCAN_GET_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_TX_FIFO_EMPTY ))
         {
             __HAL_FDCAN_CLEAR_FLAG( &g_can[can_ch].handle, FDCAN_FLAG_TX_FIFO_EMPTY );
 
-            // Take data from Tx buffer and send it
-            if ( eRING_BUFFER_OK == ring_buffer_get( g_can[can_ch].tx_buf, (can_msg_t*) &can_msg ))
+            uint32_t free_slots = HAL_FDCAN_GetTxFifoFreeLevel( &g_can[can_ch].handle );
+            while ( free_slots > 0U )
             {
-                // Send message
-                can_send_msg( can_ch, &can_msg );
+                if ( eRING_BUFFER_OK == ring_buffer_get( g_can[can_ch].tx_buf, (can_msg_t*) &can_msg ))
+                {
+                    can_send_msg( can_ch, &can_msg );
+                    free_slots--;
+                }
+                else
+                {
+                    break;
+                }
             }
         }
     }
@@ -479,6 +543,10 @@ can_status_t can_init(const can_ch_t can_ch)
     {
         if  ( false == g_can[can_ch].is_init )
         {
+            // Reset error tracking on every (re-)init
+            g_can[can_ch].bus_state   = eCAN_BUS_STATE_OK;
+            g_can[can_ch].bus_off_cnt = 0U;
+
             // Get CAN configurations
             const can_cfg_t * p_can_cfg = can_cfg_get_config( can_ch );
 
@@ -496,9 +564,9 @@ can_status_t can_init(const can_ch_t can_ch)
             g_can[can_ch].handle.Instance                   = p_can_cfg->p_instance;
             g_can[can_ch].handle.Init.ClockDivider          = FDCAN_CLOCK_DIV1;
             g_can[can_ch].handle.Init.FrameFormat           = FDCAN_FRAME_FD_BRS;
-            g_can[can_ch].handle.Init.AutoRetransmission    = DISABLE;
-            g_can[can_ch].handle.Init.TransmitPause         = DISABLE;
-            g_can[can_ch].handle.Init.ProtocolException     = DISABLE;
+            g_can[can_ch].handle.Init.AutoRetransmission    = ENABLE;
+            g_can[can_ch].handle.Init.TransmitPause         = ENABLE;
+            g_can[can_ch].handle.Init.ProtocolException     = ENABLE;
 
             #if ( 1 == CAN_CFG_LOOP_BACK_EN )
                 g_can[can_ch].handle.Init.Mode                  = FDCAN_MODE_INTERNAL_LOOPBACK;
@@ -531,14 +599,16 @@ can_status_t can_init(const can_ch_t can_ch)
             // Init success
             if ( eCAN_OK == status )
             {
-                // Enable reception buffer not empty interrupt
-                HAL_FDCAN_ActivateNotification( &g_can[can_ch].handle, FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TX_FIFO_EMPTY, 0 );
+                // Enable RX, TX and bus error interrupts
+                HAL_FDCAN_ActivateNotification( &g_can[can_ch].handle,
+                    FDCAN_IT_RX_FIFO0_NEW_MESSAGE   |
+                    FDCAN_IT_TX_FIFO_EMPTY          |
+                    FDCAN_IT_ERROR_WARNING          |
+                    FDCAN_IT_ERROR_PASSIVE          |
+                    FDCAN_IT_BUS_OFF,
+                    0U );
 
-                // Error interrupt (error passive, error active & bus-off)
-                // TODO: CHeck for that!!
-                //__HAL_FDCAN_ENABLE_IT( &g_can[can_ch].handle, ( FDCAN_IT_ERROR_PASSIVE | FDCAN_IT_ERROR_WARNING | FDCAN_IT_BUS_OFF ));
-
-                // Setup UART interrupt priority and enable it
+                // Setup CAN interrupt priority and enable it
                 NVIC_SetPriority( p_can_cfg->irq_num, p_can_cfg->irq_prio );
                 NVIC_EnableIRQ( p_can_cfg->irq_num );
 
@@ -839,6 +909,68 @@ can_status_t can_clear_tx_buf(const can_ch_t can_ch)
         {
             status = eCAN_ERROR;
         }
+    }
+    else
+    {
+        status = eCAN_ERROR;
+    }
+
+    return status;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Get current CAN bus error state
+*
+* @param[in]    can_ch      - CAN communication channel
+* @param[out]   p_state     - Pointer to bus state
+* @return       status      - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
+can_status_t can_get_bus_state(const can_ch_t can_ch, can_bus_state_t * const p_state)
+{
+    can_status_t status = eCAN_OK;
+
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+    CAN_ASSERT( NULL != p_state );
+
+    if (    ( can_ch < eCAN_CH_NUM_OF )
+        &&  ( NULL != p_state ))
+    {
+        *p_state = g_can[can_ch].bus_state;
+    }
+    else
+    {
+        status = eCAN_ERROR;
+    }
+
+    return status;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*!
+* @brief        Get cumulative bus-off event count since last can_init()
+*
+* @note     Useful for diagnostics: a steadily climbing count over time
+*           indicates recurring bus problems (e.g. faulty termination or
+*           a misbehaving node). Resets to zero on every can_init() call.
+*
+* @param[in]    can_ch      - CAN communication channel
+* @param[out]   p_count     - Pointer to bus-off event counter
+* @return       status      - Status of operation
+*/
+////////////////////////////////////////////////////////////////////////////////
+can_status_t can_get_bus_off_count(const can_ch_t can_ch, uint32_t * const p_count)
+{
+    can_status_t status = eCAN_OK;
+
+    CAN_ASSERT( can_ch < eCAN_CH_NUM_OF );
+    CAN_ASSERT( NULL != p_count );
+
+    if (    ( can_ch < eCAN_CH_NUM_OF )
+        &&  ( NULL != p_count ))
+    {
+        *p_count = g_can[can_ch].bus_off_cnt;
     }
     else
     {
